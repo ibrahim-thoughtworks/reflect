@@ -304,7 +304,8 @@ export default function CauseTreeEditor({ description, onSave }: Props) {
   const [linkCandidate, setLinkCandidate] = useState<LinkCandidate | null>(null)
   const [shakingId, setShakingId] = useState<string | null>(null)
   const [highlightGroupId, setHighlightGroupId] = useState<string | null>(null)
-  const [unlinkingId, setUnlinkingId] = useState<string | null>(null)
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null) // panel open
+  const [linkingFromId, setLinkingFromId] = useState<string | null>(null)   // linking mode
   const [showRecenter, setShowRecenter] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -419,21 +420,41 @@ export default function CauseTreeEditor({ description, onSave }: Props) {
 
   function unlinkNode(id: string) {
     setNodes(ns => applyUnlink(id, ns))
-    setUnlinkingId(null)
+    setSelectedNodeId(null)
+  }
+
+  function deleteNode(id: string) {
+    setNodes(ns => applyDelete(id, ns))
+    setSelectedNodeId(null)
+  }
+
+  function startLinking(id: string) {
+    setLinkingFromId(id)
+    setSelectedNodeId(null)
+    if (nodes.find(n => n.id === id)?.groupId) {
+      setHighlightGroupId(nodes.find(n => n.id === id)!.groupId!)
+      setTimeout(() => setHighlightGroupId(null), 600)
+    }
+  }
+
+  function completeLinking(targetId: string) {
+    const fromId = linkingFromId!
+    if (fromId === targetId) { setLinkingFromId(null); return }     // cancel: clicked source
+    setNodes(ns => applyRelink(fromId, targetId, ns))
+    setLinkingFromId(null)
   }
 
   function handleNodeClick(node: EditorNode) {
-    if (node.linkedToId) {
-      // Secondary node: toggle the unlink prompt instead of root-cause toggle
-      setUnlinkingId(prev => prev === node.id ? null : node.id)
+    if (linkingFromId) {
+      completeLinking(node.id)
       return
     }
-    // Primary / regular node: highlight group members + root-cause toggle
-    if (node.groupId) {
+    // Toggle the inline options panel
+    if (node.groupId && selectedNodeId !== node.id) {
       setHighlightGroupId(node.groupId)
       setTimeout(() => setHighlightGroupId(null), 1500)
     }
-    toggleRootCause(node.id)
+    setSelectedNodeId(prev => prev === node.id ? null : node.id)
   }
 
   function shake(id: string) {
@@ -500,6 +521,22 @@ export default function CauseTreeEditor({ description, onSave }: Props) {
             <p className="text-xs font-semibold text-center line-clamp-3 leading-snug">{description}</p>
           </div>
 
+          {/* Linking-mode banner */}
+          {linkingFromId && (
+            <div
+              style={{ left: 0, top: 0, width: canvasW }}
+              className="absolute flex items-center justify-between gap-3 px-4 py-2 bg-violet-50 border border-violet-200 rounded-xl text-xs text-violet-700 z-10"
+            >
+              <span>↔ Click any primary cause to link — or click the source node to cancel</span>
+              <button
+                onClick={() => setLinkingFromId(null)}
+                className="text-violet-400 hover:text-violet-600 font-medium"
+              >
+                Esc
+              </button>
+            </div>
+          )}
+
           {/* Cause nodes */}
           {allItems.filter(i => !i.isAction && i.id !== 'root').map(item => {
             const node = nodes.find(n => n.id === item.id)!
@@ -508,50 +545,98 @@ export default function CauseTreeEditor({ description, onSave }: Props) {
             const isLeaf = node.status === 'closed' && !isSecondary && nodes.filter(n => n.parentId === item.id).length === 0
             const isShaking = shakingId === item.id
             const isHighlighted = !!node.groupId && highlightGroupId === node.groupId
+            const isSelected = selectedNodeId === node.id
+            const isLinkingSource = linkingFromId === node.id
+            const isValidLinkTarget = !!linkingFromId && !node.linkedToId && node.id !== linkingFromId
 
             const colour = node.groupId ? groupColour(node.groupId, allGroupIds) : null
-            const borderCls = isRC
-              ? 'border-amber-400'
+            const borderCls = isRC ? 'border-amber-400'
+              : isSelected ? 'border-indigo-400'
               : colour ? colour.border : isLeaf ? 'border-gray-200' : 'border-gray-200'
-            const bgCls = isRC
-              ? 'bg-amber-50'
+            const bgCls = isRC ? 'bg-amber-50'
+              : isSelected ? 'bg-indigo-50'
               : colour ? colour.bg : isLeaf ? 'bg-gray-50' : 'bg-white'
-            const textCls = isRC
-              ? 'text-amber-800 font-semibold'
+            const textCls = isRC ? 'text-amber-800 font-semibold'
               : colour ? colour.text : isLeaf ? 'text-gray-400' : 'text-gray-700'
 
-            const isUnlinking = unlinkingId === node.id
+            // Can this node be marked RC from the panel?
+            const canMarkRC = !isRC && (() => {
+              if (node.groupId) {
+                const siblings = nodes.filter(n => n.groupId === node.groupId && n.id !== node.id)
+                if (siblings.some(s => s.isActionableRootCause)) return false
+              }
+              const ancestors = allAncestorIds(node.id, nodes)
+              if ([...ancestors].some(aid => isNodeOrGroupEffectivelyRC(aid, nodes))) return false
+              const descendants = allDescendantIds(node.id, nodes)
+              if ([...descendants].some(did => isNodeOrGroupEffectivelyRC(did, nodes))) return false
+              return true
+            })()
 
             return (
               <div
                 key={item.id}
                 onClick={() => handleNodeClick(node)}
                 style={{ left: item.x - NODE_W / 2, top: item.y, width: NODE_W, height: NODE_H }}
-                className={`absolute rounded-xl px-3 py-2 flex flex-col items-center justify-center border-2 cursor-pointer select-none transition-all
+                className={`absolute rounded-xl px-2 py-2 flex flex-col items-center justify-center border-2 cursor-pointer select-none transition-all shadow-sm
                   ${isShaking ? 'animate-[shake_0.35s_ease]' : ''}
                   ${isHighlighted ? 'ring-2 ring-offset-1 ring-indigo-400 animate-pulse' : ''}
-                  ${isUnlinking ? 'ring-2 ring-rose-400 bg-rose-50 border-rose-300' : `${bgCls} ${borderCls} hover:brightness-95`}
-                  shadow-sm`}
+                  ${isLinkingSource ? 'ring-2 ring-violet-400 animate-pulse' : ''}
+                  ${isValidLinkTarget ? 'ring-2 ring-violet-200 hover:ring-violet-400' : ''}
+                  ${isSelected ? `${bgCls} ${borderCls}` : `${bgCls} ${borderCls} hover:brightness-95`}`}
               >
-                {isUnlinking ? (
-                  <>
-                    <p className="text-[10px] text-rose-600 font-semibold mb-1.5 text-center">Remove link?</p>
-                    <div className="flex gap-1.5" onClick={e => e.stopPropagation()}>
+                {isSelected ? (
+                  /* ── Unified options panel ── */
+                  <div className="flex flex-col items-center gap-1 w-full" onClick={e => e.stopPropagation()}>
+                    {/* Row 1: RC toggle */}
+                    {isRC ? (
+                      <button
+                        onClick={() => { toggleRootCause(node.id); setSelectedNodeId(null) }}
+                        className="w-full py-0.5 text-[10px] font-semibold text-amber-600 bg-amber-100 hover:bg-amber-200 rounded-md transition-colors"
+                      >
+                        ✕ Root Cause
+                      </button>
+                    ) : canMarkRC ? (
+                      <button
+                        onClick={() => { toggleRootCause(node.id); setSelectedNodeId(null) }}
+                        className="w-full py-0.5 text-[10px] font-semibold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-300 rounded-md transition-colors"
+                      >
+                        ★ Root Cause
+                      </button>
+                    ) : null}
+                    {/* Row 2: Link / Unlink */}
+                    {isSecondary ? (
                       <button
                         onClick={() => unlinkNode(node.id)}
-                        className="px-2 py-0.5 bg-rose-500 hover:bg-rose-600 text-white text-[10px] font-semibold rounded-md transition-colors"
+                        className="w-full py-0.5 text-[10px] font-semibold text-violet-700 bg-violet-50 hover:bg-violet-100 border border-violet-300 rounded-md transition-colors"
                       >
-                        Unlink
+                        ↔ Unlink
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => startLinking(node.id)}
+                        className="w-full py-0.5 text-[10px] font-semibold text-violet-700 bg-violet-50 hover:bg-violet-100 border border-violet-300 rounded-md transition-colors"
+                      >
+                        ↔ Link
+                      </button>
+                    )}
+                    {/* Row 3: Delete + Close */}
+                    <div className="flex gap-1 w-full">
+                      <button
+                        onClick={() => deleteNode(node.id)}
+                        className="flex-1 py-0.5 text-[10px] font-semibold text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-300 rounded-md transition-colors"
+                      >
+                        🗑 Delete
                       </button>
                       <button
-                        onClick={() => setUnlinkingId(null)}
-                        className="px-2 py-0.5 border border-gray-300 hover:bg-gray-50 text-gray-500 text-[10px] font-medium rounded-md transition-colors"
+                        onClick={() => setSelectedNodeId(null)}
+                        className="px-2 py-0.5 text-[10px] text-gray-400 hover:text-gray-600 border border-gray-200 rounded-md transition-colors"
                       >
-                        Keep
+                        ✕
                       </button>
                     </div>
-                  </>
+                  </div>
                 ) : (
+                  /* ── Normal display ── */
                   <>
                     <p className={`text-xs text-center line-clamp-2 leading-snug ${textCls}`}>
                       {node.text}
