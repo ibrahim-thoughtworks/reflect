@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { CauseNode, Problem } from '../types'
 import { groupColour, collectGroupIds } from '../lib/groupColours'
 
@@ -94,6 +94,9 @@ function Connectors({ px, py, children }: { px: number; py: number; children: La
 export default function ProblemTree({ problem }: { problem: Problem }) {
   const { description, causes } = problem
   const [highlightGroupId, setHighlightGroupId] = useState<string | null>(null)
+  const [showRecenter, setShowRecenter] = useState(false)
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const isProgrammaticScroll = useRef(false)
 
   const flat = flattenCauseTree(causes)
   const allGroupIds = collectGroupIds(flat)
@@ -119,6 +122,38 @@ export default function ProblemTree({ problem }: { problem: Problem }) {
 
   const allCauses = flattenLayout(causeLayouts)
 
+  useEffect(() => {
+    const el = scrollRef.current
+    if (!el) return
+    const raf = requestAnimationFrame(() => {
+      if (el.clientWidth > 0) {
+        isProgrammaticScroll.current = true
+        el.scrollLeft = Math.max(0, (totalW - el.clientWidth) / 2)
+      }
+      setShowRecenter(false)
+    })
+    return () => cancelAnimationFrame(raf)
+  }, [totalW])
+
+  function handleScroll() {
+    if (isProgrammaticScroll.current) {
+      isProgrammaticScroll.current = false
+      return
+    }
+    const el = scrollRef.current
+    if (!el) return
+    const centreX = Math.max(0, (totalW - el.clientWidth) / 2)
+    setShowRecenter(Math.abs(el.scrollLeft - centreX) > 20)
+  }
+
+  function recentre() {
+    const el = scrollRef.current
+    if (!el) return
+    isProgrammaticScroll.current = true
+    el.scrollTo({ left: Math.max(0, (totalW - el.clientWidth) / 2), behavior: 'smooth' })
+    setShowRecenter(false)
+  }
+
   function handleNodeClick(cause: CauseNode) {
     if (cause.groupId) {
       setHighlightGroupId(cause.groupId)
@@ -127,7 +162,13 @@ export default function ProblemTree({ problem }: { problem: Problem }) {
   }
 
   return (
-    <div className="overflow-auto pb-4">
+    <div className="relative pb-4">
+      <div
+        ref={scrollRef}
+        onScroll={handleScroll}
+        className="overflow-x-auto overflow-y-visible"
+      >
+        <div style={{ minWidth: totalW, display: 'flex', justifyContent: 'center' }}>
       <div className="relative" style={{ width: totalW, height: totalH }}>
         <svg className="absolute inset-0 pointer-events-none" width={totalW} height={totalH}>
           {causes.length > 0 && <Connectors px={problemX} py={problemY} children={causeLayouts} />}
@@ -184,6 +225,18 @@ export default function ProblemTree({ problem }: { problem: Problem }) {
           )
         })}
       </div>
+        </div>{/* flex-centering wrapper */}
+      </div>{/* scrollRef */}
+
+      {/* Re-centre button */}
+      {showRecenter && (
+        <button
+          onClick={recentre}
+          className="absolute bottom-3 left-1/2 -translate-x-1/2 z-20 px-3 py-1.5 bg-white border border-gray-300 shadow-md rounded-full text-xs text-gray-600 font-medium hover:bg-gray-50 transition-colors"
+        >
+          ⊕ Centre
+        </button>
+      )}
     </div>
   )
 }

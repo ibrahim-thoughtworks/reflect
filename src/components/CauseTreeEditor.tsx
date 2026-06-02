@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { groupColour, collectGroupIds } from '../lib/groupColours'
 
 // ─── constants ───────────────────────────────────────────────────────────────
@@ -218,7 +218,10 @@ export default function CauseTreeEditor({ description, onSave }: Props) {
   const [shakingId, setShakingId] = useState<string | null>(null)
   const [highlightGroupId, setHighlightGroupId] = useState<string | null>(null)
   const [unlinkingId, setUnlinkingId] = useState<string | null>(null)
+  const [showRecenter, setShowRecenter] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const isProgrammaticScroll = useRef(false)
 
   const canSave = !problemOpen && nodes.every(n => n.status === 'closed')
 
@@ -351,10 +354,51 @@ export default function CauseTreeEditor({ description, onSave }: Props) {
     setTimeout(() => setShakingId(null), 400)
   }
 
+  // ── horizontal centering ──
+  useEffect(() => {
+    const el = scrollRef.current
+    if (!el) return
+    // Wait one frame so the browser has measured the container width
+    const raf = requestAnimationFrame(() => {
+      if (el.clientWidth > 0) {
+        isProgrammaticScroll.current = true
+        el.scrollLeft = Math.max(0, (canvasW - el.clientWidth) / 2)
+      }
+      setShowRecenter(false)
+    })
+    return () => cancelAnimationFrame(raf)
+  }, [canvasW])
+
+  function handleScroll() {
+    if (isProgrammaticScroll.current) {
+      isProgrammaticScroll.current = false
+      return
+    }
+    const el = scrollRef.current
+    if (!el) return
+    const centreX = Math.max(0, (canvasW - el.clientWidth) / 2)
+    setShowRecenter(Math.abs(el.scrollLeft - centreX) > 20)
+  }
+
+  function recentre() {
+    const el = scrollRef.current
+    if (!el) return
+    isProgrammaticScroll.current = true
+    el.scrollTo({ left: Math.max(0, (canvasW - el.clientWidth) / 2), behavior: 'smooth' })
+    setShowRecenter(false)
+  }
+
   // ── render ──
   return (
     <div className="flex flex-col gap-4">
-      <div className="overflow-auto">
+      {/* Scroll container with horizontal centring */}
+      <div className="relative">
+        <div
+          ref={scrollRef}
+          onScroll={handleScroll}
+          className="overflow-x-auto overflow-y-visible"
+        >
+          <div style={{ minWidth: canvasW, display: 'flex', justifyContent: 'center' }}>
         <div className="relative" style={{ width: canvasW, height: canvasH }}>
 
           <svg className="absolute inset-0 pointer-events-none" width={canvasW} height={canvasH}>
@@ -517,7 +561,19 @@ export default function CauseTreeEditor({ description, onSave }: Props) {
             )
           })}
         </div>
-      </div>
+          </div>{/* flex-centering inner wrapper */}
+        </div>{/* scrollRef */}
+
+        {/* Re-centre button */}
+        {showRecenter && (
+          <button
+            onClick={recentre}
+            className="absolute bottom-3 left-1/2 -translate-x-1/2 z-20 px-3 py-1.5 bg-white border border-gray-300 shadow-md rounded-full text-xs text-gray-600 font-medium hover:bg-gray-50 transition-colors"
+          >
+            ⊕ Centre
+          </button>
+        )}
+      </div>{/* relative wrapper */}
 
       {/* Save */}
       <div className="flex items-center justify-between pt-3 border-t border-gray-100">
