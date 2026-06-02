@@ -1,9 +1,10 @@
 import { useRef, useState } from 'react'
+import { groupColour, collectGroupIds } from '../lib/groupColours'
 
 // ─── constants ───────────────────────────────────────────────────────────────
 const NODE_W = 184
 const NODE_H = 76
-const ACTION_H = 48   // height of the Add/Skip / input slot below an open node
+const ACTION_H = 48
 const H_GAP = 32
 const V_GAP = 56
 const PAD = 40
@@ -17,15 +18,22 @@ export type EditorNode = {
   depth: number
   status: 'open' | 'closed'
   isActionableRootCause: boolean
-  groupId?: string      // set on all instances of a linked group
-  linkedToId?: string   // set on secondary instances; primary holds real children
+  groupId?: string
+  linkedToId?: string
+}
+
+type LinkCandidate = {
+  parentId: string | null   // where the new node would be added
+  text: string              // the typed text
+  matchId: string           // id of the existing primary that matched
+  matchText: string         // text of the existing primary
 }
 
 type LayoutItem = {
-  id: string         // node id | 'root' | `action:{parentId|root}`
+  id: string
   isAction: boolean
-  x: number          // centre x
-  y: number          // top y
+  x: number
+  y: number
   w: number
   h: number
   children: LayoutItem[]
@@ -37,24 +45,17 @@ type Props = {
 }
 
 // ─── layout ──────────────────────────────────────────────────────────────────
-// parentId=null means the problem root. problemOpen controls whether the root
-// gets an action slot (true = not yet skipped by the user).
-function subtreeW(
-  parentId: string | null,
-  nodes: EditorNode[],
-  problemOpen: boolean,
-): number {
-  const isOpen = parentId === null
-    ? problemOpen
-    : nodes.find(n => n.id === parentId)!.status === 'open'
-  const depth = parentId === null ? 0 : nodes.find(n => n.id === parentId)!.depth
+// Secondary nodes (linkedToId set) are always closed leaves in the editor —
+// their inherited children are shown only in the detail view.
+function subtreeW(parentId: string | null, nodes: EditorNode[], problemOpen: boolean): number {
+  const node = parentId ? nodes.find(n => n.id === parentId) : null
+  const isSecondary = !!node?.linkedToId
+  const isOpen = parentId === null ? problemOpen : (node?.status === 'open' && !isSecondary)
+  const depth = node?.depth ?? 0
   const hasSlot = isOpen && depth < MAX_DEPTH
 
-  const children = nodes.filter(n => n.parentId === parentId)
-  const widths = [
-    ...children.map(c => subtreeW(c.id, nodes, problemOpen)),
-    ...(hasSlot ? [NODE_W] : []),
-  ]
+  const children = isSecondary ? [] : nodes.filter(n => n.parentId === parentId)
+  const widths = [...children.map(c => subtreeW(c.id, nodes, problemOpen)), ...(hasSlot ? [NODE_W] : [])]
   if (widths.length === 0) return NODE_W
   return widths.reduce((s, w) => s + w, 0) + (widths.length - 1) * H_GAP
 }
@@ -66,17 +67,17 @@ function buildLayout(
   leftX: number,
   topY: number,
 ): LayoutItem {
-  const isOpen = parentId === null
-    ? problemOpen
-    : nodes.find(n => n.id === parentId)!.status === 'open'
-  const depth = parentId === null ? 0 : nodes.find(n => n.id === parentId)!.depth
+  const node = parentId ? nodes.find(n => n.id === parentId) : null
+  const isSecondary = !!node?.linkedToId
+  const isOpen = parentId === null ? problemOpen : (node?.status === 'open' && !isSecondary)
+  const depth = node?.depth ?? 0
   const hasSlot = isOpen && depth < MAX_DEPTH
 
   const sw = subtreeW(parentId, nodes, problemOpen)
   const centreX = leftX + sw / 2
   const childTopY = topY + NODE_H + V_GAP
 
-  const children = nodes.filter(n => n.parentId === parentId)
+  const children = isSecondary ? [] : nodes.filter(n => n.parentId === parentId)
   let curLeft = leftX
   const childLayouts = children.map(c => {
     const cw = subtreeW(c.id, nodes, problemOpen)
@@ -86,15 +87,7 @@ function buildLayout(
   })
 
   const slotItem: LayoutItem | null = hasSlot
-    ? {
-        id: `action:${parentId ?? 'root'}`,
-        isAction: true,
-        x: curLeft + NODE_W / 2,
-        y: childTopY,
-        w: NODE_W,
-        h: ACTION_H,
-        children: [],
-      }
+    ? { id: `action:${parentId ?? 'root'}`, isAction: true, x: curLeft + NODE_W / 2, y: childTopY, w: NODE_W, h: ACTION_H, children: [] }
     : null
 
   return {
@@ -119,7 +112,6 @@ function Connectors({ item }: { item: LayoutItem }) {
   const pBottom = item.y + item.h
   const cTop = kids[0].y
   const midY = (pBottom + cTop) / 2
-
   return (
     <>
       {kids.length === 1 ? (
@@ -128,9 +120,7 @@ function Connectors({ item }: { item: LayoutItem }) {
         <>
           <line x1={item.x} y1={pBottom} x2={item.x} y2={midY} stroke="#cbd5e1" strokeWidth={1.5} />
           <line x1={kids[0].x} y1={midY} x2={kids[kids.length - 1].x} y2={midY} stroke="#cbd5e1" strokeWidth={1.5} />
-          {kids.map(k => (
-            <line key={k.id} x1={k.x} y1={midY} x2={k.x} y2={cTop} stroke="#cbd5e1" strokeWidth={1.5} />
-          ))}
+          {kids.map(k => <line key={k.id} x1={k.x} y1={midY} x2={k.x} y2={cTop} stroke="#cbd5e1" strokeWidth={1.5} />)}
         </>
       )}
       {kids.map(k => <Connectors key={k.id} item={k} />)}
@@ -141,19 +131,64 @@ function Connectors({ item }: { item: LayoutItem }) {
 // ─── id generator ─────────────────────────────────────────────────────────────
 let _seq = 0
 function newId() { return `en${++_seq}` }
+function newGroupId() { return `g${++_seq}` }
+
+// ─── ancestor/descendant helpers (group-aware) ───────────────────────────────
+// Returns all ancestor node ids across ALL group members' parent chains.
+function allAncestorIds(targetId: string, nodes: EditorNode[]): Set<string> {
+  const target = nodes.find(n => n.id === targetId)!
+  const groupMembers = target.groupId
+    ? nodes.filter(n => n.groupId === target.groupId)
+    : [target]
+
+  const result = new Set<string>()
+  for (const member of groupMembers) {
+    let cur: string | null = member.parentId
+    while (cur) {
+      result.add(cur)
+      const anc = nodes.find(n => n.id === cur)
+      cur = anc?.parentId ?? null
+    }
+  }
+  return result
+}
+
+// Returns all descendant node ids across ALL group members' subtrees.
+function allDescendantIds(targetId: string, nodes: EditorNode[]): Set<string> {
+  const target = nodes.find(n => n.id === targetId)!
+  const groupMembers = target.groupId
+    ? nodes.filter(n => n.groupId === target.groupId)
+    : [target]
+
+  const result = new Set<string>()
+  for (const member of groupMembers) {
+    // Use the canonical id (primary's id) to collect real children
+    const canonicalId = member.linkedToId ?? member.id
+    const stack = nodes.filter(n => n.parentId === canonicalId)
+    while (stack.length) {
+      const d = stack.pop()!
+      result.add(d.id)
+      stack.push(...nodes.filter(n => n.parentId === (d.linkedToId ?? d.id)))
+    }
+  }
+  return result
+}
 
 // ─── component ────────────────────────────────────────────────────────────────
 export default function CauseTreeEditor({ description, onSave }: Props) {
   const [nodes, setNodes] = useState<EditorNode[]>([])
-  const [problemOpen, setProblemOpen] = useState(true)   // false after user skips the root slot
-  const [inputtingFor, setInputtingFor] = useState<string | null>(null) // parentId | 'root' | null
+  const [problemOpen, setProblemOpen] = useState(true)
+  const [inputtingFor, setInputtingFor] = useState<string | null>(null) // 'root' | nodeId | null
   const [inputValue, setInputValue] = useState('')
+  const [linkCandidate, setLinkCandidate] = useState<LinkCandidate | null>(null)
   const [shakingId, setShakingId] = useState<string | null>(null)
+  const [highlightGroupId, setHighlightGroupId] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
   const canSave = !problemOpen && nodes.every(n => n.status === 'closed')
 
-  // ── layout ──
+  const allGroupIds = collectGroupIds(nodes)
+
   const rootLayout = buildLayout(null, nodes, problemOpen, PAD, PAD)
   const allItems = flattenLayout(rootLayout)
   const canvasW = Math.max(...allItems.map(i => i.x + i.w / 2)) + PAD
@@ -161,27 +196,38 @@ export default function CauseTreeEditor({ description, onSave }: Props) {
 
   // ── handlers ──
   function openInput(parentId: string | null) {
+    setLinkCandidate(null)
     setInputtingFor(parentId === null ? 'root' : parentId)
     setInputValue('')
     setTimeout(() => inputRef.current?.focus(), 30)
   }
 
   function skipNode(parentId: string | null) {
-    if (parentId === null) {
-      setProblemOpen(false)
-    } else {
-      setNodes(ns => ns.map(n => n.id === parentId ? { ...n, status: 'closed' } : n))
-    }
+    if (parentId === null) setProblemOpen(false)
+    else setNodes(ns => ns.map(n => n.id === parentId ? { ...n, status: 'closed' } : n))
     setInputtingFor(null)
     setInputValue('')
+    setLinkCandidate(null)
   }
 
   function confirmInput(parentId: string | null) {
     const text = inputValue.trim()
     if (!text) return
-    const parentDepth = parentId === null
-      ? 0
-      : nodes.find(n => n.id === parentId)!.depth
+
+    // Check for exact text match among existing primaries
+    const match = nodes.find(n => !n.linkedToId && n.text.trim().toLowerCase() === text.toLowerCase())
+    if (match) {
+      setLinkCandidate({ parentId, text, matchId: match.id, matchText: match.text })
+      setInputtingFor(null)
+      setInputValue('')
+      return
+    }
+
+    addNode(parentId, text)
+  }
+
+  function addNode(parentId: string | null, text: string, extra?: Partial<EditorNode>) {
+    const parentDepth = parentId === null ? 0 : nodes.find(n => n.id === parentId)!.depth
     setNodes(ns => [...ns, {
       id: newId(),
       text,
@@ -189,32 +235,64 @@ export default function CauseTreeEditor({ description, onSave }: Props) {
       depth: parentDepth + 1,
       status: 'open',
       isActionableRootCause: false,
+      ...extra,
     }])
     setInputValue('')
     setInputtingFor(null)
+    setLinkCandidate(null)
+  }
+
+  function confirmLink(candidate: LinkCandidate) {
+    // Assign or reuse groupId
+    const existingPrimary = nodes.find(n => n.id === candidate.matchId)!
+    const gId = existingPrimary.groupId ?? newGroupId()
+
+    // Ensure primary has groupId
+    setNodes(ns => {
+      const updated = ns.map(n => n.id === candidate.matchId && !n.groupId ? { ...n, groupId: gId } : n)
+      const parentDepth = candidate.parentId === null ? 0 : updated.find(n => n.id === candidate.parentId)!.depth
+      return [...updated, {
+        id: newId(),
+        text: candidate.text,
+        parentId: candidate.parentId,
+        depth: parentDepth + 1,
+        status: 'closed' as const,
+        isActionableRootCause: false,
+        groupId: gId,
+        linkedToId: candidate.matchId,
+      }]
+    })
+    setLinkCandidate(null)
   }
 
   function toggleRootCause(id: string) {
     const node = nodes.find(n => n.id === id)!
+
     if (node.isActionableRootCause) {
       setNodes(ns => ns.map(n => n.id === id ? { ...n, isActionableRootCause: false } : n))
       return
     }
-    // ancestor check
-    let cur: string | null = node.parentId
-    while (cur) {
-      const anc = nodes.find(n => n.id === cur)!
-      if (anc.isActionableRootCause) { shake(id); return }
-      cur = anc.parentId
+
+    const ancestors = allAncestorIds(id, nodes)
+    if ([...ancestors].some(aid => nodes.find(n => n.id === aid)?.isActionableRootCause)) {
+      shake(id); return
     }
-    // descendant check
-    const stack = [...nodes.filter(n => n.parentId === id)]
-    while (stack.length) {
-      const d = stack.pop()!
-      if (d.isActionableRootCause) { shake(id); return }
-      stack.push(...nodes.filter(n => n.parentId === d.id))
+
+    const descendants = allDescendantIds(id, nodes)
+    if ([...descendants].some(did => nodes.find(n => n.id === did)?.isActionableRootCause)) {
+      shake(id); return
     }
+
     setNodes(ns => ns.map(n => n.id === id ? { ...n, isActionableRootCause: true } : n))
+  }
+
+  function handleNodeClick(node: EditorNode) {
+    // Highlight other group members
+    if (node.groupId) {
+      setHighlightGroupId(node.groupId)
+      setTimeout(() => setHighlightGroupId(null), 1500)
+    }
+    toggleRootCause(node.id)
   }
 
   function shake(id: string) {
@@ -228,7 +306,6 @@ export default function CauseTreeEditor({ description, onSave }: Props) {
       <div className="overflow-auto">
         <div className="relative" style={{ width: canvasW, height: canvasH }}>
 
-          {/* SVG connectors */}
           <svg className="absolute inset-0 pointer-events-none" width={canvasW} height={canvasH}>
             <Connectors item={rootLayout} />
           </svg>
@@ -238,37 +315,50 @@ export default function CauseTreeEditor({ description, onSave }: Props) {
             style={{ left: rootLayout.x - NODE_W / 2, top: rootLayout.y, width: NODE_W, height: NODE_H }}
             className="absolute rounded-xl bg-indigo-600 text-white px-3 py-2 flex items-center justify-center shadow-md"
           >
-            <p className="text-xs font-semibold text-center line-clamp-3 leading-snug">
-              {description}
-            </p>
+            <p className="text-xs font-semibold text-center line-clamp-3 leading-snug">{description}</p>
           </div>
 
           {/* Cause nodes */}
           {allItems.filter(i => !i.isAction && i.id !== 'root').map(item => {
             const node = nodes.find(n => n.id === item.id)!
             const isRC = node.isActionableRootCause
-            const isLeaf = node.status === 'closed' && nodes.filter(n => n.parentId === item.id).length === 0
+            const isSecondary = !!node.linkedToId
+            const isLeaf = node.status === 'closed' && !isSecondary && nodes.filter(n => n.parentId === item.id).length === 0
             const isShaking = shakingId === item.id
+            const isHighlighted = !!node.groupId && highlightGroupId === node.groupId
+
+            const colour = node.groupId ? groupColour(node.groupId, allGroupIds) : null
+            const borderCls = isRC
+              ? 'border-amber-400'
+              : colour ? colour.border : isLeaf ? 'border-gray-200' : 'border-gray-200'
+            const bgCls = isRC
+              ? 'bg-amber-50'
+              : colour ? colour.bg : isLeaf ? 'bg-gray-50' : 'bg-white'
+            const textCls = isRC
+              ? 'text-amber-800 font-semibold'
+              : colour ? colour.text : isLeaf ? 'text-gray-400' : 'text-gray-700'
+
             return (
               <div
                 key={item.id}
-                onClick={() => toggleRootCause(item.id)}
+                onClick={() => handleNodeClick(node)}
                 style={{ left: item.x - NODE_W / 2, top: item.y, width: NODE_W, height: NODE_H }}
                 className={`absolute rounded-xl px-3 py-2 flex flex-col items-center justify-center border-2 cursor-pointer select-none transition-all
                   ${isShaking ? 'animate-[shake_0.35s_ease]' : ''}
-                  ${isRC
-                    ? 'bg-amber-50 border-amber-400 shadow-md'
-                    : isLeaf
-                      ? 'bg-gray-50 border-gray-200 text-gray-400'
-                      : 'bg-white border-gray-200 shadow-sm hover:border-indigo-300'
-                  }`}
+                  ${isHighlighted ? 'ring-2 ring-offset-1 ring-indigo-400 animate-pulse' : ''}
+                  ${bgCls} ${borderCls} shadow-sm hover:brightness-95`}
               >
-                <p className={`text-xs text-center line-clamp-3 leading-snug ${isRC ? 'text-amber-800 font-semibold' : isLeaf ? 'text-gray-400' : 'text-gray-700'}`}>
+                <p className={`text-xs text-center line-clamp-2 leading-snug ${textCls}`}>
                   {node.text}
                 </p>
                 {isRC && (
                   <span className="mt-1 text-[10px] font-bold uppercase tracking-wide text-amber-600 bg-amber-100 px-2 py-0.5 rounded-full">
                     Root Cause
+                  </span>
+                )}
+                {isSecondary && !isRC && (
+                  <span className={`mt-1 text-[10px] font-semibold px-2 py-0.5 rounded-full ${colour ? `${colour.text} bg-white/60` : 'text-gray-500'}`}>
+                    ↔ linked
                   </span>
                 )}
               </div>
@@ -281,6 +371,8 @@ export default function CauseTreeEditor({ description, onSave }: Props) {
             const parentId: string | null = rawParent === 'root' ? null : rawParent
             const slotKey = parentId ?? 'root'
             const isInputting = inputtingFor === slotKey
+            const isLinkPrompt = linkCandidate !== null &&
+              (linkCandidate.parentId === parentId || (linkCandidate.parentId === null && parentId === null))
 
             return (
               <div
@@ -288,7 +380,27 @@ export default function CauseTreeEditor({ description, onSave }: Props) {
                 style={{ left: item.x - NODE_W / 2, top: item.y, width: NODE_W, height: ACTION_H }}
                 className="absolute flex items-center justify-center"
               >
-                {isInputting ? (
+                {isLinkPrompt ? (
+                  <div className="flex flex-col gap-1.5 w-full">
+                    <p className="text-[10px] text-gray-500 text-center truncate">
+                      Matches "{linkCandidate!.matchText}"
+                    </p>
+                    <div className="flex gap-1.5">
+                      <button
+                        onClick={() => confirmLink(linkCandidate!)}
+                        className="flex-1 px-2 py-1 bg-violet-600 hover:bg-violet-700 text-white text-[10px] font-semibold rounded-lg transition-colors"
+                      >
+                        ↔ Link
+                      </button>
+                      <button
+                        onClick={() => addNode(parentId, linkCandidate!.text)}
+                        className="flex-1 px-2 py-1 border border-gray-300 hover:bg-gray-50 text-gray-600 text-[10px] font-medium rounded-lg transition-colors"
+                      >
+                        Add as new
+                      </button>
+                    </div>
+                  </div>
+                ) : isInputting ? (
                   <div className="flex w-full gap-1.5">
                     <input
                       ref={inputRef}
