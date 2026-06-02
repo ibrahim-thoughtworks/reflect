@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { isNodeOrGroupEffectivelyRC, allAncestorIds, applyUnlink } from './CauseTreeEditor'
+import { isNodeOrGroupEffectivelyRC, allAncestorIds, applyUnlink, applyDelete, applyRelink } from './CauseTreeEditor'
 import type { EditorNode } from './CauseTreeEditor'
 
 // Helper to build minimal EditorNode objects.
@@ -151,5 +151,112 @@ describe('applyUnlink', () => {
     expect(f.groupId).toBeUndefined()
     expect(f.linkedToId).toBeUndefined()
     expect(f.parentId).toBe('c-primary')
+  })
+})
+
+// ─── applyDelete ─────────────────────────────────────────────────────────────
+
+describe('applyDelete', () => {
+  // Tree: A → B → E; A → C; B has secondary copy B2 (linkedToId: B)
+  const baseNodes = (): EditorNode[] => [
+    node('A',  null, 0),
+    node('B',  'A',  1, false, 'group-b'),
+    node('E',  'B',  2),
+    node('C',  'A',  1),
+    node('B2', 'A',  1, false, 'group-b', 'B'),  // secondary of B
+  ]
+
+  it('removes the deleted node', () => {
+    const result = applyDelete('B', baseNodes())
+    expect(result.find(n => n.id === 'B')).toBeUndefined()
+  })
+
+  it('promotes real children to grandparent', () => {
+    const result = applyDelete('B', baseNodes())
+    const e = result.find(n => n.id === 'E')!
+    expect(e.parentId).toBe('A')
+    expect(e.depth).toBe(1)
+  })
+
+  it('clears RC on promoted children', () => {
+    const withRC = baseNodes().map(n => n.id === 'E' ? { ...n, isActionableRootCause: true } : n)
+    const result = applyDelete('B', withRC)
+    expect(result.find(n => n.id === 'E')!.isActionableRootCause).toBe(false)
+  })
+
+  it('converts secondary copies to independent open nodes', () => {
+    const result = applyDelete('B', baseNodes())
+    const b2 = result.find(n => n.id === 'B2')!
+    expect(b2.status).toBe('open')
+    expect(b2.linkedToId).toBeUndefined()
+    expect(b2.groupId).toBeUndefined()
+  })
+
+  it('removes groupId from primary when it has no other secondaries', () => {
+    // B is the primary and B2 is the only secondary.
+    // When B is deleted, B2 is converted and loses groupId.
+    // After deletion B is gone, so no more primary to clean up.
+    // Test: delete B2 (secondary) → B (primary) loses groupId since no secondaries remain.
+    const result = applyDelete('B2', baseNodes())
+    expect(result.find(n => n.id === 'B')!.groupId).toBeUndefined()
+  })
+
+  it('leaves unrelated nodes untouched', () => {
+    const result = applyDelete('B', baseNodes())
+    const c = result.find(n => n.id === 'C')!
+    expect(c.parentId).toBe('A')
+    expect(c.depth).toBe(1)
+  })
+})
+
+// ─── applyRelink ─────────────────────────────────────────────────────────────
+
+describe('applyRelink', () => {
+  // Tree: A → B → E; A → C (source to relink onto B)
+  const baseNodes = (): EditorNode[] => [
+    node('A', null, 0),
+    node('B', 'A',  1, false, 'group-b'),
+    node('E', 'B',  2),
+    node('C', 'A',  1),  // C will be relinked to B
+  ]
+
+  it('is a no-op when source === target', () => {
+    const before = baseNodes()
+    expect(applyRelink('C', 'C', before)).toEqual(before)
+  })
+
+  it('is a no-op when target is secondary', () => {
+    const withSecondary = [
+      ...baseNodes(),
+      node('B2', 'A', 1, false, 'group-b', 'B'),
+    ]
+    expect(applyRelink('C', 'B2', withSecondary)).toEqual(withSecondary)
+  })
+
+  it('source gains linkedToId, groupId, and becomes closed', () => {
+    const result = applyRelink('C', 'B', baseNodes())
+    const c = result.find(n => n.id === 'C')!
+    expect(c.linkedToId).toBe('B')
+    expect(c.groupId).toBe('group-b')  // reuses B's groupId
+    expect(c.status).toBe('closed')
+    expect(c.isActionableRootCause).toBe(false)
+  })
+
+  it('target gains groupId when it does not already have one', () => {
+    const nodes = baseNodes().map(n => n.id === 'B' ? { ...n, groupId: undefined } : n) as typeof baseNodes extends () => infer T ? T : never
+    const result = applyRelink('C', 'B', nodes as EditorNode[])
+    expect(result.find(n => n.id === 'B')!.groupId).toBeDefined()
+  })
+
+  it('source children are promoted to source parent', () => {
+    const withChild: EditorNode[] = [
+      ...baseNodes(),
+      node('D', 'C', 2),  // D is a child of C
+    ]
+    const result = applyRelink('C', 'B', withChild)
+    const d = result.find(n => n.id === 'D')!
+    expect(d.parentId).toBe('A')  // promoted to A (C's parent)
+    expect(d.depth).toBe(1)
+    expect(d.isActionableRootCause).toBe(false)
   })
 })

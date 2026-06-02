@@ -208,6 +208,93 @@ export function applyUnlink(id: string, nodes: EditorNode[]): EditorNode[] {
   })
 }
 
+// ─── pure delete helper (exported for testing) ───────────────────────────────
+export function applyDelete(id: string, nodes: EditorNode[]): EditorNode[] {
+  const target = nodes.find(n => n.id === id)!
+  const newParentId = target.parentId
+  const gId = target.groupId
+
+  // Collect all real descendants (BFS) to decrement their depth
+  const allDescendants = new Set<string>()
+  let frontier = nodes.filter(n => n.parentId === id && !n.linkedToId).map(n => n.id)
+  while (frontier.length) {
+    frontier.forEach(fid => allDescendants.add(fid))
+    frontier = nodes.filter(n => frontier.includes(n.parentId!) && !n.linkedToId).map(n => n.id)
+  }
+  const directChildIds = new Set(nodes.filter(n => n.parentId === id).map(n => n.id))
+
+  const otherSecondaries = gId
+    ? nodes.filter(n => n.groupId === gId && n.linkedToId && n.id !== id)
+    : []
+
+  return nodes
+    .filter(n => n.id !== id)
+    .map(n => {
+      // Promote direct children to grandparent; clear RC (path changed)
+      if (directChildIds.has(n.id)) {
+        return { ...n, parentId: newParentId, depth: n.depth - 1, isActionableRootCause: false }
+      }
+      // Decrement depth for other descendants
+      if (allDescendants.has(n.id)) {
+        return { ...n, depth: n.depth - 1 }
+      }
+      // Convert secondary copies of deleted node to independent open nodes
+      if (n.linkedToId === id) {
+        const next: EditorNode = { ...n, status: 'open', isActionableRootCause: false }
+        delete next.groupId
+        delete next.linkedToId
+        return next
+      }
+      // Remove primary's groupId when no secondaries remain
+      if (gId && n.groupId === gId && !n.linkedToId && otherSecondaries.length === 0) {
+        const next: EditorNode = { ...n }
+        delete next.groupId
+        return next
+      }
+      return n
+    })
+}
+
+// ─── pure relink helper (exported for testing) ────────────────────────────────
+export function applyRelink(sourceId: string, targetId: string, nodes: EditorNode[]): EditorNode[] {
+  if (sourceId === targetId) return nodes
+  const target = nodes.find(n => n.id === targetId)
+  if (!target || target.linkedToId) return nodes // can't link to secondary
+
+  const source = nodes.find(n => n.id === sourceId)!
+  const gId = target.groupId ?? `g${sourceId}`
+  const newParentId = source.parentId
+
+  // Collect direct children + all descendants of source for promotion + depth fix
+  const allDescendants = new Set<string>()
+  let frontier = nodes.filter(n => n.parentId === sourceId && !n.linkedToId).map(n => n.id)
+  while (frontier.length) {
+    frontier.forEach(fid => allDescendants.add(fid))
+    frontier = nodes.filter(n => frontier.includes(n.parentId!) && !n.linkedToId).map(n => n.id)
+  }
+  const directChildIds = new Set(nodes.filter(n => n.parentId === sourceId).map(n => n.id))
+
+  return nodes.map(n => {
+    // Source becomes secondary
+    if (n.id === sourceId) {
+      return { ...n, status: 'closed' as const, isActionableRootCause: false, groupId: gId, linkedToId: targetId }
+    }
+    // Target gains groupId if it doesn't already have one
+    if (n.id === targetId && !n.groupId) {
+      return { ...n, groupId: gId }
+    }
+    // Promote source's direct children to source's parent; clear RC
+    if (directChildIds.has(n.id)) {
+      return { ...n, parentId: newParentId, depth: n.depth - 1, isActionableRootCause: false }
+    }
+    // Decrement depth for other descendants
+    if (allDescendants.has(n.id)) {
+      return { ...n, depth: n.depth - 1 }
+    }
+    return n
+  })
+}
+
 // ─── component ────────────────────────────────────────────────────────────────
 export default function CauseTreeEditor({ description, onSave }: Props) {
   const [nodes, setNodes] = useState<EditorNode[]>([])
