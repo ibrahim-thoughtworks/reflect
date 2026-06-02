@@ -97,7 +97,7 @@ export default function AddProblem({ onDone, onCancel }: Props) {
       const children = w.nodes.filter(
         (n) => n.parentId === w.currentTargetId && n.depth < MAX_DEPTH,
       )
-      const newFront = [...children].reverse().map((c) => c.id)
+      const newFront = children.map((c) => c.id)
       const newStack = [...newFront, ...w.pendingStack]
 
       if (newStack.length === 0) {
