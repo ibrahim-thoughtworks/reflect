@@ -1,4 +1,6 @@
+import { useState } from 'react'
 import type { CauseNode, Problem } from '../types'
+import { groupColour, collectGroupIds } from '../lib/groupColours'
 
 const NODE_W = 184
 const NODE_H = 80
@@ -6,119 +8,129 @@ const H_GAP = 28
 const V_GAP = 64
 const PAD = 40
 
+// ─── flat-tree helpers ────────────────────────────────────────────────────────
+function flattenCauseTree(nodes: CauseNode[]): CauseNode[] {
+  return nodes.flatMap(n => [n, ...flattenCauseTree(n.children)])
+}
+
+// For secondary nodes (linkedToId set), effective children come from the primary.
+// Ghost-id prefix prevents key collisions when the same child appears twice.
+function effectiveChildren(node: CauseNode, flat: CauseNode[], ghostPrefix: string): CauseNode[] {
+  if (!node.linkedToId) return node.children
+  const primary = flat.find(n => n.id === node.linkedToId)
+  if (!primary) return []
+  // Wrap children in ghost nodes to avoid duplicate React keys
+  return primary.children.map(c => wrapGhost(c, ghostPrefix))
+}
+
+function wrapGhost(node: CauseNode, prefix: string): CauseNode {
+  return {
+    ...node,
+    id: `${prefix}:${node.id}`,
+    children: node.children.map(c => wrapGhost(c, prefix)),
+  }
+}
+
+// ─── layout ───────────────────────────────────────────────────────────────────
 type LayoutNode = {
   cause: CauseNode
-  x: number      // horizontal centre
-  y: number      // top edge
-  sw: number     // subtree width
+  x: number
+  y: number
+  sw: number
   children: LayoutNode[]
 }
 
-function subtreeW(node: CauseNode): number {
-  if (node.children.length === 0) return NODE_W
-  return (
-    node.children.reduce((s, c) => s + subtreeW(c), 0) +
-    (node.children.length - 1) * H_GAP
-  )
+function subtreeW(node: CauseNode, flat: CauseNode[], ghostPrefix: string): number {
+  const kids = effectiveChildren(node, flat, ghostPrefix)
+  if (kids.length === 0) return NODE_W
+  return kids.reduce((s, c) => s + subtreeW(c, flat, ghostPrefix), 0) + (kids.length - 1) * H_GAP
 }
 
-function buildLayout(node: CauseNode, leftX: number, topY: number): LayoutNode {
-  const sw = subtreeW(node)
+function buildLayout(node: CauseNode, flat: CauseNode[], ghostPrefix: string, leftX: number, topY: number): LayoutNode {
+  const sw = subtreeW(node, flat, ghostPrefix)
   const centerX = leftX + sw / 2
+  const kids = effectiveChildren(node, flat, ghostPrefix)
   let childLeft = leftX
-  const children = node.children.map((c) => {
-    const cl = buildLayout(c, childLeft, topY + NODE_H + V_GAP)
-    childLeft += subtreeW(c) + H_GAP
+  const children = kids.map(c => {
+    const cl = buildLayout(c, flat, ghostPrefix, childLeft, topY + NODE_H + V_GAP)
+    childLeft += subtreeW(c, flat, ghostPrefix) + H_GAP
     return cl
   })
   return { cause: node, x: centerX, y: topY, sw, children }
 }
 
 function flattenLayout(nodes: LayoutNode[]): LayoutNode[] {
-  return nodes.flatMap((n) => [n, ...flattenLayout(n.children)])
+  return nodes.flatMap(n => [n, ...flattenLayout(n.children)])
 }
 
-function treeDepth(nodes: CauseNode[]): number {
+function treeDepth(nodes: CauseNode[], flat: CauseNode[], ghostPrefix: string): number {
   if (nodes.length === 0) return 0
-  return 1 + Math.max(...nodes.map((n) => treeDepth(n.children)))
+  return 1 + Math.max(...nodes.map(n => treeDepth(effectiveChildren(n, flat, ghostPrefix), flat, ghostPrefix)))
 }
 
-// Renders SVG connector lines between a parent centre and its children.
-function Connectors({
-  px,
-  py,
-  children,
-}: {
-  px: number
-  py: number
-  children: LayoutNode[]
-}) {
+// ─── SVG connectors ───────────────────────────────────────────────────────────
+function Connectors({ px, py, children }: { px: number; py: number; children: LayoutNode[] }) {
   if (children.length === 0) return null
-  const parentBottom = py + NODE_H
-  const childTop = children[0].y
-  const midY = (parentBottom + childTop) / 2
-
+  const pBottom = py + NODE_H
+  const cTop = children[0].y
+  const midY = (pBottom + cTop) / 2
   return (
     <>
       {children.length === 1 ? (
-        <line x1={px} y1={parentBottom} x2={children[0].x} y2={childTop} stroke="#cbd5e1" strokeWidth={1.5} />
+        <line x1={px} y1={pBottom} x2={children[0].x} y2={cTop} stroke="#cbd5e1" strokeWidth={1.5} />
       ) : (
         <>
-          <line x1={px} y1={parentBottom} x2={px} y2={midY} stroke="#cbd5e1" strokeWidth={1.5} />
-          <line
-            x1={children[0].x} y1={midY}
-            x2={children[children.length - 1].x} y2={midY}
-            stroke="#cbd5e1" strokeWidth={1.5}
-          />
-          {children.map((c) => (
-            <line key={c.cause.id} x1={c.x} y1={midY} x2={c.x} y2={childTop} stroke="#cbd5e1" strokeWidth={1.5} />
-          ))}
+          <line x1={px} y1={pBottom} x2={px} y2={midY} stroke="#cbd5e1" strokeWidth={1.5} />
+          <line x1={children[0].x} y1={midY} x2={children[children.length - 1].x} y2={midY} stroke="#cbd5e1" strokeWidth={1.5} />
+          {children.map(c => <line key={c.cause.id} x1={c.x} y1={midY} x2={c.x} y2={cTop} stroke="#cbd5e1" strokeWidth={1.5} />)}
         </>
       )}
-      {children.map((c) => (
-        <Connectors key={c.cause.id} px={c.x} py={c.y} children={c.children} />
-      ))}
+      {children.map(c => <Connectors key={c.cause.id} px={c.x} py={c.y} children={c.children} />)}
     </>
   )
 }
 
+// ─── component ────────────────────────────────────────────────────────────────
 export default function ProblemTree({ problem }: { problem: Problem }) {
   const { description, causes } = problem
+  const [highlightGroupId, setHighlightGroupId] = useState<string | null>(null)
 
-  const rootsW =
-    causes.length === 0
-      ? NODE_W
-      : causes.reduce((s, c) => s + subtreeW(c), 0) + (causes.length - 1) * H_GAP
+  const flat = flattenCauseTree(causes)
+  const allGroupIds = collectGroupIds(flat)
+  const GHOST = 'ghost'
+
+  const rootsW = causes.length === 0
+    ? NODE_W
+    : causes.reduce((s, c) => s + subtreeW(c, flat, GHOST), 0) + (causes.length - 1) * H_GAP
 
   const problemX = PAD + rootsW / 2
   const problemY = PAD
 
   let childLeft = PAD
-  const causeLayouts = causes.map((c) => {
-    const cl = buildLayout(c, childLeft, PAD + NODE_H + V_GAP)
-    childLeft += subtreeW(c) + H_GAP
+  const causeLayouts = causes.map(c => {
+    const cl = buildLayout(c, flat, GHOST, childLeft, PAD + NODE_H + V_GAP)
+    childLeft += subtreeW(c, flat, GHOST) + H_GAP
     return cl
   })
 
-  const depth = treeDepth(causes)
+  const depth = treeDepth(causes, flat, GHOST)
   const totalW = Math.max(rootsW + PAD * 2, NODE_W + PAD * 2)
   const totalH = PAD + (depth + 1) * NODE_H + depth * V_GAP + PAD
 
   const allCauses = flattenLayout(causeLayouts)
 
+  function handleNodeClick(cause: CauseNode) {
+    if (cause.groupId) {
+      setHighlightGroupId(cause.groupId)
+      setTimeout(() => setHighlightGroupId(null), 1500)
+    }
+  }
+
   return (
     <div className="overflow-auto pb-4">
       <div className="relative" style={{ width: totalW, height: totalH }}>
-        {/* Connector lines */}
-        <svg
-          className="absolute inset-0 pointer-events-none"
-          width={totalW}
-          height={totalH}
-        >
-          {/* Problem → root-level causes */}
-          {causes.length > 0 && (
-            <Connectors px={problemX} py={problemY} children={causeLayouts} />
-          )}
+        <svg className="absolute inset-0 pointer-events-none" width={totalW} height={totalH}>
+          {causes.length > 0 && <Connectors px={problemX} py={problemY} children={causeLayouts} />}
         </svg>
 
         {/* Problem node */}
@@ -127,35 +139,45 @@ export default function ProblemTree({ problem }: { problem: Problem }) {
           style={{ left: problemX - NODE_W / 2, top: problemY, width: NODE_W, height: NODE_H }}
           className="absolute rounded-xl bg-indigo-600 text-white px-3 py-2 flex items-center justify-center shadow-md"
         >
-          <p className="text-xs font-semibold text-center line-clamp-3 leading-snug">
-            {description}
-          </p>
+          <p className="text-xs font-semibold text-center line-clamp-3 leading-snug">{description}</p>
         </div>
 
         {/* Cause nodes */}
         {allCauses.map(({ cause, x, y }) => {
-          const isRoot = cause.isActionableRootCause
+          // Resolve canonical cause for groupId/linkedToId (ghost nodes share the original id prefix)
+          const canonicalId = cause.id.includes(':') ? cause.id.split(':').pop()! : cause.id
+          const canonical = flat.find(n => n.id === canonicalId) ?? cause
+          const isRC = canonical.isActionableRootCause
+          const isSecondary = !!canonical.linkedToId
+          const isHighlighted = !!canonical.groupId && highlightGroupId === canonical.groupId
+
+          const colour = canonical.groupId ? groupColour(canonical.groupId, allGroupIds) : null
+          const borderCls = isRC ? 'border-amber-400' : colour ? colour.border : 'border-gray-200'
+          const bgCls = isRC ? 'bg-amber-50' : colour ? colour.bg : 'bg-white'
+          const textCls = isRC ? 'text-amber-800 font-semibold' : colour ? colour.text : 'text-gray-700'
+
           return (
             <div
               key={cause.id}
-              title={cause.text}
+              title={canonical.text}
+              onClick={() => handleNodeClick(canonical)}
               style={{ left: x - NODE_W / 2, top: y, width: NODE_W, height: NODE_H }}
-              className={`absolute rounded-xl px-3 py-2 flex flex-col items-center justify-center shadow-sm border-2 transition-colors ${
-                isRoot
-                  ? 'bg-amber-50 border-amber-400'
-                  : 'bg-white border-gray-200'
-              }`}
+              className={`absolute rounded-xl px-3 py-2 flex flex-col items-center justify-center border-2 shadow-sm transition-all
+                ${canonical.groupId ? 'cursor-pointer hover:brightness-95' : ''}
+                ${isHighlighted ? 'ring-2 ring-offset-1 ring-indigo-400 animate-pulse' : ''}
+                ${bgCls} ${borderCls}`}
             >
-              <p
-                className={`text-xs text-center line-clamp-3 leading-snug ${
-                  isRoot ? 'text-amber-800 font-semibold' : 'text-gray-700'
-                }`}
-              >
-                {cause.text}
+              <p className={`text-xs text-center line-clamp-3 leading-snug ${textCls}`}>
+                {canonical.text}
               </p>
-              {isRoot && (
+              {isRC && (
                 <span className="mt-1.5 text-[10px] font-bold uppercase tracking-wide text-amber-600 bg-amber-100 px-2 py-0.5 rounded-full">
                   Root Cause
+                </span>
+              )}
+              {isSecondary && !isRC && colour && (
+                <span className={`mt-1 text-[10px] font-semibold px-2 py-0.5 rounded-full ${colour.text} bg-white/60`}>
+                  ↔ linked
                 </span>
               )}
             </div>

@@ -273,6 +273,12 @@ export default function CauseTreeEditor({ description, onSave }: Props) {
       return
     }
 
+    // Block if another node in the same group is already a root cause
+    if (node.groupId) {
+      const siblings = nodes.filter(n => n.groupId === node.groupId && n.id !== id)
+      if (siblings.some(s => s.isActionableRootCause)) { shake(id); return }
+    }
+
     const ancestors = allAncestorIds(id, nodes)
     if ([...ancestors].some(aid => nodes.find(n => n.id === aid)?.isActionableRootCause)) {
       shake(id); return
