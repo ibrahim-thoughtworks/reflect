@@ -1,24 +1,18 @@
 import { useState } from 'react'
 import WhyStep from '../components/WhyStep'
+import RootCauseSelector from '../components/RootCauseSelector'
+import type { WizardNode } from '../components/RootCauseSelector'
+import { saveProblem } from '../store/problems'
+import type { CauseNode } from '../types'
 
 const MAX_DEPTH = 5
-
-// Flat node used during the wizard; tree is built at save time.
-type WizardNode = {
-  id: string
-  text: string
-  parentId: string | null
-  depth: number // 1 = direct child of problem, up to MAX_DEPTH
-}
 
 type Phase = 'describe' | 'whyCauses' | 'selectRootCauses'
 
 type WizardState = {
   description: string
   nodes: WizardNode[]
-  // IDs of nodes whose causes still need to be collected, in DFS order (front = next).
   pendingStack: string[]
-  // null = asking about the problem itself; otherwise an id in nodes.
   currentTargetId: string | null
   hasAddedChild: boolean
   currentInput: string
@@ -46,7 +40,21 @@ function getBreadcrumb(nodes: WizardNode[], targetId: string | null, description
   return [description, ...path]
 }
 
-function nextId(): string {
+function buildCauseTree(nodes: WizardNode[], rootCauseIds: Set<string>): CauseNode[] {
+  function build(parentId: string | null): CauseNode[] {
+    return nodes
+      .filter((n) => n.parentId === parentId)
+      .map((n) => ({
+        id: n.id,
+        text: n.text,
+        isActionableRootCause: rootCauseIds.has(n.id),
+        children: build(n.id),
+      }))
+  }
+  return build(null)
+}
+
+function newId(): string {
   return Math.random().toString(36).slice(2)
 }
 
@@ -71,7 +79,7 @@ export default function AddProblem({ onDone, onCancel }: Props) {
     if (!text) return
     const childDepth = getDepth(wizard.nodes, wizard.currentTargetId) + 1
     const newNode: WizardNode = {
-      id: nextId(),
+      id: newId(),
       text,
       parentId: wizard.currentTargetId,
       depth: childDepth,
@@ -86,16 +94,13 @@ export default function AddProblem({ onDone, onCancel }: Props) {
 
   function handleSkipOrDone() {
     setWizard((w) => {
-      // Collect children of current target added so far, eligible for DFS (depth < MAX_DEPTH).
       const children = w.nodes.filter(
         (n) => n.parentId === w.currentTargetId && n.depth < MAX_DEPTH,
       )
-      // Push children to front of stack in reverse order so first child is visited first.
       const newFront = [...children].reverse().map((c) => c.id)
       const newStack = [...newFront, ...w.pendingStack]
 
       if (newStack.length === 0) {
-        // All branches exhausted — move to root cause selection.
         setPhase('selectRootCauses')
         return { ...w, pendingStack: [], currentInput: '', hasAddedChild: false }
       }
@@ -111,9 +116,15 @@ export default function AddProblem({ onDone, onCancel }: Props) {
     })
   }
 
-  // When phase transitions to selectRootCauses we need to call setPhase from outside setWizard.
-  // Use a side-effect-free check after state settles.
-  // (Phase is set inside handleSkipOrDone via closure — we call setPhase directly there.)
+  function handleSave(rootCauseIds: Set<string>) {
+    saveProblem({
+      id: newId(),
+      description: wizard.description,
+      causes: buildCauseTree(wizard.nodes, rootCauseIds),
+      createdAt: Date.now(),
+    })
+    onDone()
+  }
 
   const breadcrumb = getBreadcrumb(wizard.nodes, wizard.currentTargetId, wizard.description)
 
@@ -121,10 +132,20 @@ export default function AddProblem({ onDone, onCancel }: Props) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
         <div className="bg-white rounded-2xl shadow-sm border border-gray-200 w-full max-w-lg p-8">
-          <p className="text-gray-500 text-sm">Root cause selection — coming soon (Task 6)</p>
-          <button onClick={onDone} className="mt-4 text-sm text-indigo-600 underline">
-            Go home (temporary)
-          </button>
+          <div className="flex items-center justify-between mb-8">
+            <h2 className="text-lg font-semibold text-gray-800">Root Causes</h2>
+            <button
+              onClick={onCancel}
+              className="text-gray-400 hover:text-gray-600 text-sm transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+          <RootCauseSelector
+            description={wizard.description}
+            nodes={wizard.nodes}
+            onSave={handleSave}
+          />
         </div>
       </div>
     )
@@ -133,7 +154,6 @@ export default function AddProblem({ onDone, onCancel }: Props) {
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
       <div className="bg-white rounded-2xl shadow-sm border border-gray-200 w-full max-w-lg p-8">
-        {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <h2 className="text-lg font-semibold text-gray-800">
             {phase === 'describe' ? "What's the problem?" : 'Five Whys'}
@@ -146,7 +166,6 @@ export default function AddProblem({ onDone, onCancel }: Props) {
           </button>
         </div>
 
-        {/* Phase: describe */}
         {phase === 'describe' && (
           <div className="space-y-6">
             <div>
@@ -172,7 +191,6 @@ export default function AddProblem({ onDone, onCancel }: Props) {
           </div>
         )}
 
-        {/* Phase: whyCauses */}
         {phase === 'whyCauses' && (
           <WhyStep
             breadcrumb={breadcrumb}
