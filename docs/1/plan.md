@@ -1,18 +1,22 @@
 # Plan: add problems (#1)
 
 ## Objective
-Build a greenfield React + Vite + TypeScript "Reflect" app. Users add a problem, step through five "why?" prompts (skippable but mandatory to the end), then select any answers as actionable root causes. All data is persisted in localStorage. The main screen lists problems; clicking one renders a graphical top-down tree — problem at the root, each "why" answer as a child node, with connecting lines and actionable root causes visually highlighted.
+Build a greenfield React + Vite + TypeScript "Reflect" app. Users add a problem, walk through
+a tree-structured 5 Whys flow (each node can have multiple causes), then select any nodes as
+actionable root causes. All data is persisted in localStorage. The main screen lists problems;
+clicking one shows a graphical top-down tree with the problem at root, causes branching below,
+and actionable root causes highlighted.
 
 ## Scope
 
 ### In Scope
 - Vite + React + TypeScript project bootstrap with Tailwind CSS
 - Main screen: problem list + "Add Problem" button
-- Add Problem modal/page: free-text problem input
-- 5 Whys flow (5 sequential steps, each skippable, none escapable)
-- Root cause selection screen: all 5 answers shown as checkboxes; user picks any as actionable
-- localStorage persistence (problems, why answers, selected root causes)
-- Problem detail view: graphical SVG/CSS tree — problem node at top, why-answer nodes below, connector lines between levels, actionable root cause nodes highlighted in a distinct colour
+- Add Problem wizard: problem description input, then tree-based 5 Whys DFS flow
+- Root cause selection: all cause nodes shown; user picks any as actionable
+- localStorage persistence (problems + full cause tree + root cause selections)
+- Problem detail view: graphical SVG tree — problem at top, cause nodes below with connector
+  lines, actionable root cause nodes highlighted (amber border + badge)
 
 ### Out of Scope
 - Backend / API / auth
@@ -21,22 +25,62 @@ Build a greenfield React + Vite + TypeScript "Reflect" app. Users add a problem,
 
 ## Approach
 
-Bootstrap a Vite React TS project at the repo root. Use Tailwind CSS for styling (installed via npm). Structure the app as a single-page app with simple view-state switching for three views: **Home**, **Add Problem Wizard**, and **Problem Detail**.
+Bootstrap a Vite React TS project at the repo root. Use Tailwind CSS. Simple view-state
+switch in App.tsx for three views: Home, AddProblem, ProblemDetail.
 
-**Data model** (stored in localStorage as JSON):
+### Data model (stored in localStorage as JSON)
+
 ```ts
-type WhyAnswer = { text: string; skipped: boolean; isActionableRootCause: boolean }
-type Problem   = { id: string; description: string; whys: WhyAnswer[]; createdAt: number }
+type CauseNode = {
+  id: string
+  text: string
+  isActionableRootCause: boolean
+  children: CauseNode[]           // recursive — a node can have multiple children
+}
+
+type Problem = {
+  id: string
+  description: string
+  causes: CauseNode[]             // root-level causes (level 1)
+  createdAt: number
+}
 ```
 
-**Add Problem Wizard** — three phases:
-1. *Enter problem*: text input → "Start 5 Whys"
-2. *5 Whys loop* (steps 1–5): show current why level, text area + "Next" + "Skip" buttons. Progress indicator (e.g., "Why 2 of 5"). Step 5 auto-advances to phase 3.
-3. *Select root causes*: show all non-skipped answers as checkboxes. User picks any. "Save Problem" commits to localStorage and returns home.
+Each problem has a tree of causes up to 5 levels deep. A node can have any number of
+children at the next level.
 
-**Problem Detail tree**: SVG-based tree. Problem node sits at the top-centre. Each why answer hangs below its parent with a vertical connector line. Answered nodes are white/neutral; skipped nodes are grey/muted; actionable root cause nodes are highlighted (amber border + badge).
+### Add Problem Wizard
 
-**State management**: React Context + useReducer for in-session wizard state; localStorage read/write utility for persistence.
+Three phases:
+
+**Phase 1 — Describe:** free-text input → "Start 5 Whys"
+
+**Phase 2 — Tree-based 5 Whys (DFS traversal):**
+
+The wizard visits each node depth-first. For every node visited it asks "Why did [node]
+happen?" The user adds causes one at a time (Next after each). When done with a node's
+causes the user clicks Skip/Done, and the wizard auto-advances to the next unfinished
+node in DFS order.
+
+- A breadcrumb shows the path from the problem to the current node (e.g.
+  `Problem → lazy to read → no interest → [entering here]`).
+- Skip on the *first* cause of a node: node becomes a leaf (no causes).
+- Skip/Done after entering ≥1 cause: finished collecting causes for this node; wizard
+  dives depth-first into the first child.
+- Maximum depth: 5 levels. Level-5 nodes are always leaves (wizard does not ask about them).
+
+DFS traversal uses a pending stack. When the user finishes a node (Skip/Done), all
+children of that node whose depth < 5 are pushed to the front of the stack in reverse
+order so the first child is visited next.
+
+**Phase 3 — Select root causes:**
+All cause nodes are shown (indented by depth). User checks any as actionable root causes.
+"Save Problem" writes the full tree to localStorage and returns home.
+
+### Problem detail tree (SVG)
+Problem node at top-centre. Cause nodes below, connected by vertical lines. Nodes branch
+when a parent has multiple children. Leaf nodes that are actionable root causes get an
+amber border and "Root Cause" badge.
 
 ## Affected Areas
 
@@ -52,21 +96,26 @@ type Problem   = { id: string; description: string; whys: WhyAnswer[]; createdAt
 
 ## Assumptions
 1. [ASSUMPTION] Tailwind CSS v3 for styling.
-2. [ASSUMPTION] Simple view-state switch in `App.tsx` (no React Router) — keeps the bootstrap lightweight.
-3. [ASSUMPTION] SVG-based tree for the detail view (reliable cross-browser connector lines).
-4. [ASSUMPTION] No edit/delete of problems in this story.
+2. [ASSUMPTION] Simple view-state switch in App.tsx (no React Router).
+3. [ASSUMPTION] SVG-based tree for detail view (reliable cross-browser connector lines).
+4. [ASSUMPTION] No edit/delete in this story.
 5. [ASSUMPTION] localStorage is sufficient for persistence.
+6. [ASSUMPTION] Wizard internally uses a flat node list for React state; tree is
+   reconstructed at save time.
 
 ## Open Questions (resolved)
 | # | Question | Answer |
 |---|----------|--------|
-| 1 | Which why answers can be actionable root causes? | Any level, user selects via checkboxes |
-| 2 | Can user exit the 5 Whys early? | No — only skip per step |
-| 3 | CSS framework? | Tailwind CSS (any CSS acceptable) |
-| 4 | Tree shape? | Graphical SVG tree, problem at top, causes below with connector lines |
+| 1 | Which nodes can be actionable root causes? | Any node at any level |
+| 2 | Can user exit 5 Whys early? | No — only Skip (= no more causes for this node) |
+| 3 | CSS framework? | Tailwind CSS |
+| 4 | Tree shape? | Graphical SVG tree, branching, problem at top, connector lines |
+| 5 | Multiple causes per node? | Yes — one at a time via Next; done via Skip/Done |
+| 6 | DFS or BFS traversal? | DFS — complete one branch fully before moving to siblings |
 
 ## Risks & Mitigations
 | Risk | Mitigation |
 |------|-----------|
-| SVG tree layout gets complex for 5 levels | Keep it a linear vertical chain (each node centred); no branching needed since 5 Whys is always a single chain |
-| localStorage size limits | Problems are text-only; 5 MB limit is more than sufficient |
+| SVG layout complex for branching tree | Compute x positions recursively using subtree width |
+| DFS traversal state complex in React | Use flat pending-stack approach; push children on skip |
+| localStorage size limits | Text-only data; 5 MB limit is sufficient |

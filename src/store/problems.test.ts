@@ -1,11 +1,18 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { getProblems, saveProblem } from './problems'
-import type { Problem } from '../types'
+import type { Problem, CauseNode } from '../types'
+
+const makeLeaf = (id: string, text: string, isActionableRootCause = false): CauseNode => ({
+  id,
+  text,
+  isActionableRootCause,
+  children: [],
+})
 
 const makeProblem = (overrides: Partial<Problem> = {}): Problem => ({
   id: 'test-id',
   description: 'Test problem',
-  whys: [],
+  causes: [],
   createdAt: 1000,
   ...overrides,
 })
@@ -43,14 +50,22 @@ describe('saveProblem', () => {
     expect(result[1]).toEqual(p2)
   })
 
-  it('preserves whys and root cause selections on round-trip', () => {
+  it('preserves nested CauseNode tree on round-trip', () => {
+    const child = makeLeaf('c2', 'no interest', true)
+    const root = { ...makeLeaf('c1', 'lazy to read'), children: [child] }
+    const p = makeProblem({ causes: [root] })
+    saveProblem(p)
+    const saved = getProblems()[0]
+    expect(saved.causes[0].text).toBe('lazy to read')
+    expect(saved.causes[0].children[0].text).toBe('no interest')
+    expect(saved.causes[0].children[0].isActionableRootCause).toBe(true)
+  })
+
+  it('preserves multiple root-level causes', () => {
     const p = makeProblem({
-      whys: [
-        { text: 'Because X', skipped: false, isActionableRootCause: true },
-        { text: '', skipped: true, isActionableRootCause: false },
-      ],
+      causes: [makeLeaf('c1', 'cause one'), makeLeaf('c2', 'cause two')],
     })
     saveProblem(p)
-    expect(getProblems()[0].whys).toEqual(p.whys)
+    expect(getProblems()[0].causes).toHaveLength(2)
   })
 })

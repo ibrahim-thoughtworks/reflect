@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { getProblems } from '../store/problems'
-import type { Problem } from '../types'
+import type { CauseNode, Problem } from '../types'
 
 type Props = {
   onAddProblem: () => void
@@ -15,8 +15,8 @@ function formatDate(ts: number) {
   })
 }
 
-function rootCauseCount(p: Problem) {
-  return p.whys.filter((w) => w.isActionableRootCause).length
+function countRootCauses(nodes: CauseNode[]): number {
+  return nodes.reduce((acc, n) => acc + (n.isActionableRootCause ? 1 : 0) + countRootCauses(n.children), 0)
 }
 
 export default function Home({ onAddProblem, onSelectProblem }: Props) {
@@ -56,9 +56,9 @@ export default function Home({ onAddProblem, onSelectProblem }: Props) {
                   </p>
                   <div className="mt-2 flex items-center gap-3 text-xs text-gray-400">
                     <span>{formatDate(p.createdAt)}</span>
-                    {rootCauseCount(p) > 0 && (
+                    {countRootCauses(p.causes) > 0 && (
                       <span className="bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-medium">
-                        {rootCauseCount(p)} root cause{rootCauseCount(p) > 1 ? 's' : ''}
+                        {countRootCauses(p.causes)} root cause{countRootCauses(p.causes) > 1 ? 's' : ''}
                       </span>
                     )}
                   </div>

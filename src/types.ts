@@ -1,12 +1,13 @@
-export type WhyAnswer = {
+export type CauseNode = {
+  id: string
   text: string
-  skipped: boolean
   isActionableRootCause: boolean
+  children: CauseNode[]
 }
 
 export type Problem = {
   id: string
   description: string
-  whys: WhyAnswer[]
+  causes: CauseNode[]
   createdAt: number
 }
