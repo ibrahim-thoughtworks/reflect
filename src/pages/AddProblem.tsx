@@ -21,7 +21,6 @@ function buildCauseTree(nodes: EditorNode[]): CauseNode[] {
         id: n.id,
         text: n.text,
         isActionableRootCause: n.isActionableRootCause,
-        // Secondary nodes store no children of their own; they reference the primary.
         children: n.linkedToId ? [] : build(n.id),
         ...(n.groupId ? { groupId: n.groupId } : {}),
         ...(n.linkedToId ? { linkedToId: n.linkedToId } : {}),
@@ -44,22 +43,20 @@ export default function AddProblem({ onDone, onCancel }: Props) {
     onDone()
   }
 
-  return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
-      <div className={`bg-white rounded-2xl shadow-sm border border-gray-200 w-full p-8 ${phase === 'causes' ? 'max-w-4xl' : 'max-w-lg'}`}>
-        <div className="flex items-center justify-between mb-8">
-          <h2 className="text-lg font-semibold text-gray-800">
-            {phase === 'describe' ? "What's the problem?" : 'Map the causes'}
-          </h2>
-          <button
-            onClick={onCancel}
-            className="text-gray-400 hover:text-gray-600 text-sm transition-colors"
-          >
-            Cancel
-          </button>
-        </div>
-
-        {phase === 'describe' && (
+  // ── Describe phase: compact centered card ─────────────────────────────────
+  if (phase === 'describe') {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 w-full max-w-lg p-8">
+          <div className="flex items-center justify-between mb-8">
+            <h2 className="text-lg font-semibold text-gray-800">What's the problem?</h2>
+            <button
+              onClick={onCancel}
+              className="text-gray-400 hover:text-gray-600 text-sm transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
           <div className="space-y-6">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -82,11 +79,28 @@ export default function AddProblem({ onDone, onCancel }: Props) {
               Map causes →
             </button>
           </div>
-        )}
+        </div>
+      </div>
+    )
+  }
 
-        {phase === 'causes' && (
-          <CauseTreeEditor description={description} onSave={handleSave} />
-        )}
+  // ── Causes phase: near-fullscreen fixed container ─────────────────────────
+  return (
+    <div className="fixed inset-4 bg-white rounded-2xl shadow-lg border border-gray-200 flex flex-col overflow-hidden z-10">
+      {/* Header */}
+      <div className="shrink-0 flex items-center justify-between px-6 py-4 border-b border-gray-100">
+        <h2 className="text-lg font-semibold text-gray-800">Map the causes</h2>
+        <button
+          onClick={onCancel}
+          className="text-gray-400 hover:text-gray-600 text-sm transition-colors"
+        >
+          Cancel
+        </button>
+      </div>
+
+      {/* Scrollable tree area */}
+      <div className="flex-1 overflow-auto p-6">
+        <CauseTreeEditor description={description} onSave={handleSave} />
       </div>
     </div>
   )
