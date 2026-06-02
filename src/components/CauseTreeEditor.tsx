@@ -311,7 +311,7 @@ export default function CauseTreeEditor({ description, onSave }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const isProgrammaticScroll = useRef(false)
 
-  const canSave = !problemOpen && nodes.every(n => n.status === 'closed')
+  const canSave = nodes.length > 0 && !inputtingFor && !linkCandidate && !linkingFromId
 
   const allGroupIds = collectGroupIds(nodes)
 
@@ -693,7 +693,7 @@ export default function CauseTreeEditor({ description, onSave }: Props) {
                     </div>
                   </div>
                 ) : isInputting ? (
-                  <div className="flex w-full gap-1.5">
+                  <div className="flex flex-col w-full gap-1">
                     <input
                       ref={inputRef}
                       value={inputValue}
@@ -703,15 +703,23 @@ export default function CauseTreeEditor({ description, onSave }: Props) {
                         if (e.key === 'Escape') { setInputtingFor(null); setInputValue('') }
                       }}
                       placeholder="Because…"
-                      className="flex-1 min-w-0 border border-indigo-300 rounded-lg px-2 py-1.5 text-xs text-gray-800 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                      className="w-full border border-indigo-300 rounded-lg px-2 py-1.5 text-xs text-gray-800 focus:outline-none focus:ring-2 focus:ring-indigo-400"
                     />
-                    <button
-                      onClick={() => confirmInput(parentId)}
-                      disabled={!inputValue.trim()}
-                      className="px-2 py-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-300 text-white text-xs font-medium rounded-lg transition-colors"
-                    >
-                      Add
-                    </button>
+                    <div className="flex gap-1.5">
+                      <button
+                        onClick={() => confirmInput(parentId)}
+                        disabled={!inputValue.trim()}
+                        className="flex-1 px-2 py-1 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-300 text-white text-xs font-medium rounded-lg transition-colors"
+                      >
+                        Add
+                      </button>
+                      <button
+                        onClick={() => { setInputtingFor(null); setInputValue('') }}
+                        className="px-2 py-1 border border-gray-300 hover:bg-gray-50 text-gray-500 text-xs font-medium rounded-lg transition-colors"
+                      >
+                        Cancel
+                      </button>
+                    </div>
                   </div>
                 ) : (
                   <div className="flex gap-2">
