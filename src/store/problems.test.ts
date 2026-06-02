@@ -68,4 +68,30 @@ describe('saveProblem', () => {
     saveProblem(p)
     expect(getProblems()[0].causes).toHaveLength(2)
   })
+
+  it('preserves groupId and linkedToId on secondary nodes round-trip', () => {
+    const primary: CauseNode = {
+      id: 'b-primary',
+      text: 'B',
+      isActionableRootCause: false,
+      children: [makeLeaf('e', 'E')],
+      groupId: 'group-b',
+    }
+    const secondary: CauseNode = {
+      id: 'b-secondary',
+      text: 'B',
+      isActionableRootCause: false,
+      children: [],
+      groupId: 'group-b',
+      linkedToId: 'b-primary',
+    }
+    const p = makeProblem({ causes: [primary, secondary] })
+    saveProblem(p)
+    const saved = getProblems()[0]
+    expect(saved.causes[0].groupId).toBe('group-b')
+    expect(saved.causes[0].linkedToId).toBeUndefined()
+    expect(saved.causes[1].groupId).toBe('group-b')
+    expect(saved.causes[1].linkedToId).toBe('b-primary')
+    expect(saved.causes[1].children).toHaveLength(0)
+  })
 })

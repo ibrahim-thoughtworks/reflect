@@ -17,6 +17,8 @@ export type EditorNode = {
   depth: number
   status: 'open' | 'closed'
   isActionableRootCause: boolean
+  groupId?: string      // set on all instances of a linked group
+  linkedToId?: string   // set on secondary instances; primary holds real children
 }
 
 type LayoutItem = {

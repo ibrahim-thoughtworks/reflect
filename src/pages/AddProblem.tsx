@@ -21,7 +21,10 @@ function buildCauseTree(nodes: EditorNode[]): CauseNode[] {
         id: n.id,
         text: n.text,
         isActionableRootCause: n.isActionableRootCause,
-        children: build(n.id),
+        // Secondary nodes store no children of their own; they reference the primary.
+        children: n.linkedToId ? [] : build(n.id),
+        ...(n.groupId ? { groupId: n.groupId } : {}),
+        ...(n.linkedToId ? { linkedToId: n.linkedToId } : {}),
       }))
   }
   return build(null)
