@@ -1,14 +1,16 @@
 import { useState } from 'react'
 import CauseTreeEditor from '../components/CauseTreeEditor'
 import type { EditorNode } from '../components/CauseTreeEditor'
-import { saveProblem } from '../store/problems'
-import type { CauseNode } from '../types'
+import { saveProblem, updateProblem } from '../store/problems'
+import { causeTreeToEditorNodes } from '../lib/causeTreeToEditorNodes'
+import type { CauseNode, Problem } from '../types'
 
 type Phase = 'describe' | 'causes'
 
 type Props = {
   onDone: () => void
   onCancel: () => void
+  existingProblem?: Problem  // if set, edit mode
 }
 
 function newId() { return Math.random().toString(36).slice(2) }
@@ -29,39 +31,41 @@ function buildCauseTree(nodes: EditorNode[]): CauseNode[] {
   return build(null)
 }
 
-export default function AddProblem({ onDone, onCancel }: Props) {
-  const [phase, setPhase] = useState<Phase>('describe')
-  const [description, setDescription] = useState('')
+export default function AddProblem({ onDone, onCancel, existingProblem }: Props) {
+  const isEditing = !!existingProblem
+
+  // Edit mode: start directly in causes phase with pre-loaded data
+  const [phase, setPhase] = useState<Phase>(isEditing ? 'causes' : 'describe')
+  const [description, setDescription] = useState(existingProblem?.description ?? '')
 
   function handleSave(nodes: EditorNode[]) {
-    saveProblem({
-      id: newId(),
-      description,
-      causes: buildCauseTree(nodes),
-      createdAt: Date.now(),
-    })
+    const causes = buildCauseTree(nodes)
+    if (isEditing) {
+      updateProblem(existingProblem!.id, {
+        ...existingProblem!,
+        description,
+        causes,
+      })
+    } else {
+      saveProblem({ id: newId(), description, causes, createdAt: Date.now() })
+    }
     onDone()
   }
 
-  // ── Describe phase: compact centered card ─────────────────────────────────
+  // ── Describe phase ─────────────────────────────────────────────────────────
   if (phase === 'describe') {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
         <div className="bg-white rounded-2xl shadow-sm border border-gray-200 w-full max-w-lg p-8">
           <div className="flex items-center justify-between mb-8">
             <h2 className="text-lg font-semibold text-gray-800">What's the problem?</h2>
-            <button
-              onClick={onCancel}
-              className="text-gray-400 hover:text-gray-600 text-sm transition-colors"
-            >
+            <button onClick={onCancel} className="text-gray-400 hover:text-gray-600 text-sm transition-colors">
               Cancel
             </button>
           </div>
           <div className="space-y-6">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Describe the problem
-              </label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Describe the problem</label>
               <textarea
                 autoFocus
                 rows={4}
@@ -84,23 +88,33 @@ export default function AddProblem({ onDone, onCancel }: Props) {
     )
   }
 
-  // ── Causes phase: near-fullscreen fixed container ─────────────────────────
+  // ── Causes phase ───────────────────────────────────────────────────────────
   return (
     <div className="fixed inset-4 bg-white rounded-2xl shadow-lg border border-gray-200 flex flex-col overflow-hidden z-10">
-      {/* Header */}
       <div className="shrink-0 flex items-center justify-between px-6 py-4 border-b border-gray-100">
-        <h2 className="text-lg font-semibold text-gray-800">Map the causes</h2>
-        <button
-          onClick={onCancel}
-          className="text-gray-400 hover:text-gray-600 text-sm transition-colors"
-        >
+        <div className="flex items-center gap-3">
+          <h2 className="text-lg font-semibold text-gray-800">
+            {isEditing ? 'Edit causes' : 'Map the causes'}
+          </h2>
+          {isEditing && (
+            <button
+              onClick={() => setPhase('describe')}
+              className="text-xs text-indigo-500 hover:text-indigo-700 underline transition-colors"
+            >
+              Edit description
+            </button>
+          )}
+        </div>
+        <button onClick={onCancel} className="text-gray-400 hover:text-gray-600 text-sm transition-colors">
           Cancel
         </button>
       </div>
-
-      {/* Scrollable tree area */}
       <div className="flex-1 overflow-auto p-6">
-        <CauseTreeEditor description={description} onSave={handleSave} />
+        <CauseTreeEditor
+          description={description}
+          onSave={handleSave}
+          initialNodes={isEditing ? causeTreeToEditorNodes(existingProblem!.causes) : undefined}
+        />
       </div>
     </div>
   )

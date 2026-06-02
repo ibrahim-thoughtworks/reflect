@@ -15,3 +15,12 @@ export function saveProblem(problem: Problem): void {
   const existing = getProblems()
   localStorage.setItem(STORAGE_KEY, JSON.stringify([...existing, problem]))
 }
+
+export function updateProblem(id: string, updated: Problem): void {
+  const list = getProblems()
+  const idx = list.findIndex(p => p.id === id)
+  if (idx !== -1) {
+    list[idx] = updated
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(list))
+  }
+}

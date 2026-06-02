@@ -42,6 +42,7 @@ type LayoutItem = {
 type Props = {
   description: string
   onSave: (nodes: EditorNode[]) => void
+  initialNodes?: EditorNode[]   // pre-loaded nodes for edit mode
 }
 
 // ─── layout ──────────────────────────────────────────────────────────────────
@@ -296,8 +297,8 @@ export function applyRelink(sourceId: string, targetId: string, nodes: EditorNod
 }
 
 // ─── component ────────────────────────────────────────────────────────────────
-export default function CauseTreeEditor({ description, onSave }: Props) {
-  const [nodes, setNodes] = useState<EditorNode[]>([])
+export default function CauseTreeEditor({ description, onSave, initialNodes }: Props) {
+  const [nodes, setNodes] = useState<EditorNode[]>(initialNodes ?? [])
   const [problemOpen, setProblemOpen] = useState(true)
   const [inputtingFor, setInputtingFor] = useState<string | null>(null) // 'root' | nodeId | null
   const [inputValue, setInputValue] = useState('')
@@ -716,8 +717,9 @@ export default function CauseTreeEditor({ description, onSave }: Props) {
                       <button
                         onClick={() => { setInputtingFor(null); setInputValue('') }}
                         className="px-2 py-1 border border-gray-300 hover:bg-gray-50 text-gray-500 text-xs font-medium rounded-lg transition-colors"
+                        title="Cancel"
                       >
-                        Cancel
+                        ✕
                       </button>
                     </div>
                   </div>

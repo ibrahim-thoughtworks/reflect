@@ -4,9 +4,10 @@ import ProblemTree from '../components/ProblemTree'
 type Props = {
   id: string
   onBack: () => void
+  onEdit: (id: string) => void
 }
 
-export default function ProblemDetail({ id, onBack }: Props) {
+export default function ProblemDetail({ id, onBack, onEdit }: Props) {
   const problem = getProblems().find((p) => p.id === id) ?? null
 
   if (!problem) {
@@ -32,7 +33,13 @@ export default function ProblemDetail({ id, onBack }: Props) {
         >
           ← Back
         </button>
-        <h1 className="text-base font-semibold text-gray-800 truncate">{problem.description}</h1>
+        <h1 className="flex-1 text-base font-semibold text-gray-800 truncate">{problem.description}</h1>
+        <button
+          onClick={() => onEdit(id)}
+          className="shrink-0 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-medium rounded-lg transition-colors"
+        >
+          Edit
+        </button>
       </header>
 
       {/* Scrollable tree area */}
