@@ -135,7 +135,17 @@ function newGroupId() { return `g${++_seq}` }
 
 // ─── ancestor/descendant helpers (group-aware) ───────────────────────────────
 // Returns all ancestor node ids across ALL group members' parent chains.
-function allAncestorIds(targetId: string, nodes: EditorNode[]): Set<string> {
+// Returns true if the node itself OR any node in its linked group is a root cause.
+// Exported for unit testing.
+export function isNodeOrGroupEffectivelyRC(nodeId: string, nodes: EditorNode[]): boolean {
+  const node = nodes.find(n => n.id === nodeId)
+  if (!node) return false
+  if (node.isActionableRootCause) return true
+  if (!node.groupId) return false
+  return nodes.some(n => n.groupId === node.groupId && n.isActionableRootCause)
+}
+
+export function allAncestorIds(targetId: string, nodes: EditorNode[]): Set<string> {
   const target = nodes.find(n => n.id === targetId)!
   const groupMembers = target.groupId
     ? nodes.filter(n => n.groupId === target.groupId)
@@ -280,12 +290,12 @@ export default function CauseTreeEditor({ description, onSave }: Props) {
     }
 
     const ancestors = allAncestorIds(id, nodes)
-    if ([...ancestors].some(aid => nodes.find(n => n.id === aid)?.isActionableRootCause)) {
+    if ([...ancestors].some(aid => isNodeOrGroupEffectivelyRC(aid, nodes))) {
       shake(id); return
     }
 
     const descendants = allDescendantIds(id, nodes)
-    if ([...descendants].some(did => nodes.find(n => n.id === did)?.isActionableRootCause)) {
+    if ([...descendants].some(did => isNodeOrGroupEffectivelyRC(did, nodes))) {
       shake(id); return
     }
 
