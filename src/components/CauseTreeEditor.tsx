@@ -184,6 +184,30 @@ function allDescendantIds(targetId: string, nodes: EditorNode[]): Set<string> {
   return result
 }
 
+// ─── pure unlink helper (exported for testing) ───────────────────────────────
+export function applyUnlink(id: string, nodes: EditorNode[]): EditorNode[] {
+  const target = nodes.find(n => n.id === id)!
+  const gId = target.groupId
+  const otherSecondaries = gId
+    ? nodes.filter(n => n.groupId === gId && n.linkedToId && n.id !== id)
+    : []
+
+  return nodes.map(n => {
+    if (n.id === id) {
+      const next: EditorNode = { ...n, status: 'open', isActionableRootCause: false }
+      delete next.groupId
+      delete next.linkedToId
+      return next
+    }
+    if (gId && n.groupId === gId && !n.linkedToId && otherSecondaries.length === 0) {
+      const next: EditorNode = { ...n }
+      delete next.groupId
+      return next
+    }
+    return n
+  })
+}
+
 // ─── component ────────────────────────────────────────────────────────────────
 export default function CauseTreeEditor({ description, onSave }: Props) {
   const [nodes, setNodes] = useState<EditorNode[]>([])
@@ -193,6 +217,7 @@ export default function CauseTreeEditor({ description, onSave }: Props) {
   const [linkCandidate, setLinkCandidate] = useState<LinkCandidate | null>(null)
   const [shakingId, setShakingId] = useState<string | null>(null)
   const [highlightGroupId, setHighlightGroupId] = useState<string | null>(null)
+  const [unlinkingId, setUnlinkingId] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
   const canSave = !problemOpen && nodes.every(n => n.status === 'closed')
@@ -302,8 +327,18 @@ export default function CauseTreeEditor({ description, onSave }: Props) {
     setNodes(ns => ns.map(n => n.id === id ? { ...n, isActionableRootCause: true } : n))
   }
 
+  function unlinkNode(id: string) {
+    setNodes(ns => applyUnlink(id, ns))
+    setUnlinkingId(null)
+  }
+
   function handleNodeClick(node: EditorNode) {
-    // Highlight other group members
+    if (node.linkedToId) {
+      // Secondary node: toggle the unlink prompt instead of root-cause toggle
+      setUnlinkingId(prev => prev === node.id ? null : node.id)
+      return
+    }
+    // Primary / regular node: highlight group members + root-cause toggle
     if (node.groupId) {
       setHighlightGroupId(node.groupId)
       setTimeout(() => setHighlightGroupId(null), 1500)
@@ -354,6 +389,8 @@ export default function CauseTreeEditor({ description, onSave }: Props) {
               ? 'text-amber-800 font-semibold'
               : colour ? colour.text : isLeaf ? 'text-gray-400' : 'text-gray-700'
 
+            const isUnlinking = unlinkingId === node.id
+
             return (
               <div
                 key={item.id}
@@ -362,20 +399,43 @@ export default function CauseTreeEditor({ description, onSave }: Props) {
                 className={`absolute rounded-xl px-3 py-2 flex flex-col items-center justify-center border-2 cursor-pointer select-none transition-all
                   ${isShaking ? 'animate-[shake_0.35s_ease]' : ''}
                   ${isHighlighted ? 'ring-2 ring-offset-1 ring-indigo-400 animate-pulse' : ''}
-                  ${bgCls} ${borderCls} shadow-sm hover:brightness-95`}
+                  ${isUnlinking ? 'ring-2 ring-rose-400 bg-rose-50 border-rose-300' : `${bgCls} ${borderCls} hover:brightness-95`}
+                  shadow-sm`}
               >
-                <p className={`text-xs text-center line-clamp-2 leading-snug ${textCls}`}>
-                  {node.text}
-                </p>
-                {isRC && (
-                  <span className="mt-1 text-[10px] font-bold uppercase tracking-wide text-amber-600 bg-amber-100 px-2 py-0.5 rounded-full">
-                    Root Cause
-                  </span>
-                )}
-                {isSecondary && !isRC && (
-                  <span className={`mt-1 text-[10px] font-semibold px-2 py-0.5 rounded-full ${colour ? `${colour.text} bg-white/60` : 'text-gray-500'}`}>
-                    ↔ linked
-                  </span>
+                {isUnlinking ? (
+                  <>
+                    <p className="text-[10px] text-rose-600 font-semibold mb-1.5 text-center">Remove link?</p>
+                    <div className="flex gap-1.5" onClick={e => e.stopPropagation()}>
+                      <button
+                        onClick={() => unlinkNode(node.id)}
+                        className="px-2 py-0.5 bg-rose-500 hover:bg-rose-600 text-white text-[10px] font-semibold rounded-md transition-colors"
+                      >
+                        Unlink
+                      </button>
+                      <button
+                        onClick={() => setUnlinkingId(null)}
+                        className="px-2 py-0.5 border border-gray-300 hover:bg-gray-50 text-gray-500 text-[10px] font-medium rounded-md transition-colors"
+                      >
+                        Keep
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <p className={`text-xs text-center line-clamp-2 leading-snug ${textCls}`}>
+                      {node.text}
+                    </p>
+                    {isRC && (
+                      <span className="mt-1 text-[10px] font-bold uppercase tracking-wide text-amber-600 bg-amber-100 px-2 py-0.5 rounded-full">
+                        Root Cause
+                      </span>
+                    )}
+                    {isSecondary && !isRC && (
+                      <span className={`mt-1 text-[10px] font-semibold px-2 py-0.5 rounded-full ${colour ? `${colour.text} bg-white/60` : 'text-gray-500'}`}>
+                        ↔ linked
+                      </span>
+                    )}
+                  </>
                 )}
               </div>
             )

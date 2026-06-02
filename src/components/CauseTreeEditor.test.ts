@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { isNodeOrGroupEffectivelyRC, allAncestorIds } from './CauseTreeEditor'
+import { isNodeOrGroupEffectivelyRC, allAncestorIds, applyUnlink } from './CauseTreeEditor'
 import type { EditorNode } from './CauseTreeEditor'
 
 // Helper to build minimal EditorNode objects.
@@ -94,5 +94,62 @@ describe('bug #4 regression: grouped-parent ancestor check', () => {
     const ancestors = allAncestorIds('F', nodes)
     const blocked = [...ancestors].some(aid => isNodeOrGroupEffectivelyRC(aid, nodes))
     expect(blocked).toBe(false)
+  })
+})
+
+// ─── applyUnlink ─────────────────────────────────────────────────────────────
+
+describe('applyUnlink', () => {
+  // Base tree: A → C-primary → F; A → D → C-secondary (linked to C-primary)
+  const baseNodes = (): EditorNode[] => [
+    node('A',           null,        0),
+    node('c-primary',   'A',         1, false, 'group-c'),
+    node('F',           'c-primary', 2),
+    node('D',           'A',         1),
+    node('c-secondary', 'D',         2, false, 'group-c', 'c-primary'),
+  ]
+
+  it('secondary node loses linkedToId and groupId after unlink', () => {
+    const result = applyUnlink('c-secondary', baseNodes())
+    const sec = result.find(n => n.id === 'c-secondary')!
+    expect(sec.linkedToId).toBeUndefined()
+    expect(sec.groupId).toBeUndefined()
+  })
+
+  it('secondary node becomes open after unlink', () => {
+    const result = applyUnlink('c-secondary', baseNodes())
+    expect(result.find(n => n.id === 'c-secondary')!.status).toBe('open')
+  })
+
+  it('clears isActionableRootCause on the unlinked node', () => {
+    const withRC = baseNodes().map(n =>
+      n.id === 'c-secondary' ? { ...n, isActionableRootCause: true } : n,
+    )
+    const result = applyUnlink('c-secondary', withRC)
+    expect(result.find(n => n.id === 'c-secondary')!.isActionableRootCause).toBe(false)
+  })
+
+  it('removes groupId from primary when no other secondaries remain', () => {
+    const result = applyUnlink('c-secondary', baseNodes())
+    expect(result.find(n => n.id === 'c-primary')!.groupId).toBeUndefined()
+  })
+
+  it('keeps groupId on primary when another secondary still exists', () => {
+    const twoSecondaries = [
+      ...baseNodes(),
+      node('c-secondary-2', 'A', 1, false, 'group-c', 'c-primary'),
+    ]
+    const result = applyUnlink('c-secondary', twoSecondaries)
+    expect(result.find(n => n.id === 'c-primary')!.groupId).toBe('group-c')
+    // The remaining secondary also keeps its groupId
+    expect(result.find(n => n.id === 'c-secondary-2')!.groupId).toBe('group-c')
+  })
+
+  it('does not affect unrelated nodes', () => {
+    const result = applyUnlink('c-secondary', baseNodes())
+    const f = result.find(n => n.id === 'F')!
+    expect(f.groupId).toBeUndefined()
+    expect(f.linkedToId).toBeUndefined()
+    expect(f.parentId).toBe('c-primary')
   })
 })
