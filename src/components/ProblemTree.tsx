@@ -166,25 +166,25 @@ export default function ProblemTree({ problem }: { problem: Problem }) {
       <div
         ref={scrollRef}
         onScroll={handleScroll}
-        className="overflow-x-auto overflow-y-visible"
+        className="overflow-x-auto"
       >
-        <div style={{ minWidth: totalW, display: 'flex', justifyContent: 'center' }}>
-      <div className="relative" style={{ width: totalW, height: totalH }}>
-        <svg className="absolute inset-0 pointer-events-none" width={totalW} height={totalH}>
-          {causes.length > 0 && <Connectors px={problemX} py={problemY} children={causeLayouts} />}
-        </svg>
+        <div style={{ minWidth: totalW, minHeight: totalH, display: 'flex', justifyContent: 'center' }}>
+          <div className="relative" style={{ width: totalW, height: totalH }}>
+            <svg className="absolute inset-0 pointer-events-none" width={totalW} height={totalH}>
+              {causes.length > 0 && <Connectors px={problemX} py={problemY} children={causeLayouts} />}
+            </svg>
 
-        {/* Problem node */}
-        <div
-          title={description}
-          style={{ left: problemX - NODE_W / 2, top: problemY, width: NODE_W, height: NODE_H }}
-          className="absolute rounded-xl bg-indigo-600 text-white px-3 py-2 flex items-center justify-center shadow-md"
-        >
-          <p className="text-xs font-semibold text-center line-clamp-3 leading-snug">{description}</p>
-        </div>
+            {/* Problem node */}
+            <div
+              title={description}
+              style={{ left: problemX - NODE_W / 2, top: problemY, width: NODE_W, height: NODE_H }}
+              className="absolute rounded-xl bg-indigo-600 text-white px-3 py-2 flex items-center justify-center shadow-md"
+            >
+              <p className="text-xs font-semibold text-center line-clamp-3 leading-snug">{description}</p>
+            </div>
 
-        {/* Cause nodes */}
-        {allCauses.map(({ cause, x, y }) => {
+            {/* Cause nodes */}
+            {allCauses.map(({ cause, x, y }) => {
           // Resolve canonical cause for groupId/linkedToId (ghost nodes share the original id prefix)
           const canonicalId = cause.id.includes(':') ? cause.id.split(':').pop()! : cause.id
           const canonical = flat.find(n => n.id === canonicalId) ?? cause

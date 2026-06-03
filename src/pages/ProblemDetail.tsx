@@ -43,7 +43,7 @@ export default function ProblemDetail({ id, onBack, onEdit }: Props) {
         </button>
       </header>
 
-      {/* Scrollable tree area */}
+      {/* Scrollable tree and matrix windows */}
       <main className="flex-1 overflow-auto px-6 py-6">
         {problem.causes.length === 0 ? (
           <div className="flex items-center justify-center h-full">
@@ -54,11 +54,11 @@ export default function ProblemDetail({ id, onBack, onEdit }: Props) {
           </div>
         ) : (
           <div className="space-y-8">
-            <div className="rounded-[2rem] bg-white border border-slate-200 shadow-sm p-6">
+            <div className="rounded-[2rem] bg-white border border-slate-200 shadow-sm p-6" style={{ minHeight: 840 }}>
               <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-indigo-600 mb-4">Problem map</h2>
               <ProblemTree problem={problem} />
             </div>
-            <div className="rounded-[2rem] bg-white border border-slate-200 shadow-sm p-6">
+            <div className="rounded-[2rem] bg-white border border-slate-200 shadow-sm p-6" style={{ minHeight: 840 }}>
               <ComplexityMatrixView causes={problem.causes} />
             </div>
           </div>
