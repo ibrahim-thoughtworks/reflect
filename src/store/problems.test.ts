@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { getProblems, saveProblem } from './problems'
+import { getProblems, saveProblem, updateProblem } from './problems'
 import type { Problem, CauseNode } from '../types'
 
 const makeLeaf = (id: string, text: string, isActionableRootCause = false): CauseNode => ({
@@ -93,5 +93,31 @@ describe('saveProblem', () => {
     expect(saved.causes[1].groupId).toBe('group-b')
     expect(saved.causes[1].linkedToId).toBe('b-primary')
     expect(saved.causes[1].children).toHaveLength(0)
+  })
+
+  it('preserves solutions on root cause nodes round-trip', () => {
+    const rc: CauseNode = {
+      id: 'rc1',
+      text: 'Root cause',
+      isActionableRootCause: true,
+      children: [],
+      solutions: ['Fix A', 'Fix B'],
+    }
+    const p = makeProblem({ causes: [rc] })
+    saveProblem(p)
+    const saved = getProblems()[0]
+    expect(saved.causes[0].solutions).toEqual(['Fix A', 'Fix B'])
+  })
+
+  it('updateProblem replaces the problem in place', () => {
+    const p1 = makeProblem({ id: 'x', description: 'Original' })
+    const p2 = makeProblem({ id: 'y', description: 'Other' })
+    saveProblem(p1)
+    saveProblem(p2)
+    updateProblem('x', { ...p1, description: 'Updated' })
+    const list = getProblems()
+    expect(list).toHaveLength(2)
+    expect(list[0].description).toBe('Updated')
+    expect(list[1].description).toBe('Other')
   })
 })
