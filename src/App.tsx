@@ -48,7 +48,7 @@ export default function App() {
   }
 
   if (view === 'solve' && selectedId) {
-    return <SolveProblem id={selectedId} onDone={goHome} />
+    return <SolveProblem id={selectedId} onDone={goHome} onNext={goHome} />
   }
 
   if (view === 'detail' && selectedId) {

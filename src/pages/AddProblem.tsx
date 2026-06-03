@@ -3,7 +3,7 @@ import CauseTreeEditor from '../components/CauseTreeEditor'
 import type { EditorNode } from '../components/CauseTreeEditor'
 import { saveProblem, updateProblem } from '../store/problems'
 import { causeTreeToEditorNodes } from '../lib/causeTreeToEditorNodes'
-import type { CauseNode, Problem } from '../types'
+import type { CauseNode, Problem, Solution } from '../types'
 
 type Phase = 'describe' | 'causes'
 
@@ -22,7 +22,7 @@ function flattenCauses(causes: CauseNode[]): CauseNode[] {
 // Rebuild a CauseNode tree from editor nodes, carrying solutions forward from
 // the prior saved tree so that editing causes doesn't wipe solutions.
 function buildCauseTree(nodes: EditorNode[], priorCauses?: CauseNode[]): CauseNode[] {
-  const solutionsById = new Map<string, string[]>()
+  const solutionsById = new Map<string, Solution[]>()
   if (priorCauses) {
     flattenCauses(priorCauses).forEach(c => {
       if (c.solutions?.length) solutionsById.set(c.id, c.solutions)

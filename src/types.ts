@@ -1,3 +1,9 @@
+export type Solution = {
+  text: string
+  matrixX?: number   // 0–1 normalised, undefined = unplaced in complexity matrix
+  matrixY?: number   // 0–1 normalised, undefined = unplaced in complexity matrix
+}
+
 export type CauseNode = {
   id: string
   text: string
@@ -5,7 +11,7 @@ export type CauseNode = {
   children: CauseNode[]
   groupId?: string      // set on all instances of a linked group
   linkedToId?: string   // set on secondary instances; primary holds real children
-  solutions?: string[]  // actionable solutions for root cause nodes
+  solutions?: Solution[] // actionable solutions for root cause nodes
 }
 
 export type Problem = {

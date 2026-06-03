@@ -101,12 +101,15 @@ describe('saveProblem', () => {
       text: 'Root cause',
       isActionableRootCause: true,
       children: [],
-      solutions: ['Fix A', 'Fix B'],
+      solutions: [{ text: 'Fix A', matrixX: 0.2, matrixY: 0.3 }, { text: 'Fix B' }],
     }
     const p = makeProblem({ causes: [rc] })
     saveProblem(p)
     const saved = getProblems()[0]
-    expect(saved.causes[0].solutions).toEqual(['Fix A', 'Fix B'])
+    expect(saved.causes[0].solutions?.[0].text).toBe('Fix A')
+    expect(saved.causes[0].solutions?.[0].matrixX).toBe(0.2)
+    expect(saved.causes[0].solutions?.[1].text).toBe('Fix B')
+    expect(saved.causes[0].solutions?.[1].matrixX).toBeUndefined()
   })
 
   it('updateProblem replaces the problem in place', () => {
