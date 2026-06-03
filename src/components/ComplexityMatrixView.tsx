@@ -5,6 +5,7 @@ type PlacedSolution = {
   text: string
   matrixX: number
   matrixY: number
+  applying?: boolean
 }
 
 function flattenCauseTree(nodes: CauseNode[]): CauseNode[] {
@@ -36,6 +37,7 @@ export default function ComplexityMatrixView({ causes }: Props) {
           text: s.text ?? 'Untitled solution',
           matrixX: s.matrixX!,
           matrixY: s.matrixY!,
+          applying: s.applying,
         }))
     )
 
@@ -69,6 +71,7 @@ export default function ComplexityMatrixView({ causes }: Props) {
             {/* Stickies */}
             {all.map(s => {
               const colour = quadrantColor(s.matrixX, s.matrixY)
+              const isApplying = !!s.applying
               return (
                 <div
                   key={s.key}
@@ -79,7 +82,7 @@ export default function ComplexityMatrixView({ causes }: Props) {
                     width: STICKY_W,
                     height: STICKY_H,
                   }}
-                  className={`rounded-2xl border-2 shadow-sm flex items-center justify-center px-3 py-2 text-center text-[11px] font-semibold tracking-tight leading-snug break-words whitespace-normal ${colour}`}
+                  className={`rounded-2xl border-2 shadow-sm flex items-center justify-center px-3 py-2 text-center text-[11px] font-semibold tracking-tight leading-snug break-words whitespace-normal ${colour} ${isApplying ? 'ring-4 ring-indigo-500/30 shadow-lg' : ''}`}
                 >
                   {s.text || 'Untitled solution'}
                 </div>

@@ -2,6 +2,7 @@ export type Solution = {
   text: string
   matrixX?: number   // 0–1 normalised, undefined = unplaced in complexity matrix
   matrixY?: number   // 0–1 normalised, undefined = unplaced in complexity matrix
+  applying?: boolean // selected as the solution to apply
 }
 
 export type CauseNode = {

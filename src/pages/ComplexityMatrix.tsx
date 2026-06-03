@@ -10,6 +10,7 @@ type PlacedSolution = {
   text: string
   matrixX?: number  // 0-1 normalised
   matrixY?: number
+  applying?: boolean
 }
 
 type DragState = {
@@ -67,6 +68,7 @@ export default function ComplexityMatrix({ id, onDone }: Props) {
           text: s.text ?? 'Untitled solution',
           matrixX: s.matrixX,
           matrixY: s.matrixY,
+          applying: s.applying,
         }))
       )
   }
@@ -94,19 +96,32 @@ export default function ComplexityMatrix({ id, onDone }: Props) {
   const onPointerUp = useCallback((e: React.PointerEvent) => {
     if (!drag || !matrixRef.current) { setDrag(null); return }
 
-    const rect = matrixRef.current.getBoundingClientRect()
-    const dropX = e.clientX - drag.offsetX - rect.left + STICKY_W / 2
-    const dropY = e.clientY - drag.offsetY - rect.top + STICKY_H / 2
-    const normX = Math.max(0, Math.min(1, dropX / rect.width))
-    const normY = Math.max(0, Math.min(1, dropY / rect.height))
+    // Check if this was a click (no meaningful movement) or a drag
+    const deltaX = Math.abs(e.clientX - drag.startPointerX)
+    const deltaY = Math.abs(e.clientY - drag.startPointerY)
+    const isClick = deltaX < 5 && deltaY < 5
 
-    const inside = e.clientX >= rect.left && e.clientX <= rect.right &&
-                   e.clientY >= rect.top  && e.clientY <= rect.bottom
-
-    if (inside) {
+    if (isClick) {
+      // Toggle applying state instead of moving the sticky
       setSolutions(prev => prev.map(s =>
-        s.key === drag.key ? { ...s, matrixX: normX, matrixY: normY } : s
+        s.key === drag.key ? { ...s, applying: !s.applying } : s
       ))
+    } else {
+      // Handle drag movement
+      const rect = matrixRef.current.getBoundingClientRect()
+      const dropX = e.clientX - drag.offsetX - rect.left + STICKY_W / 2
+      const dropY = e.clientY - drag.offsetY - rect.top + STICKY_H / 2
+      const normX = Math.max(0, Math.min(1, dropX / rect.width))
+      const normY = Math.max(0, Math.min(1, dropY / rect.height))
+
+      const inside = e.clientX >= rect.left && e.clientX <= rect.right &&
+                     e.clientY >= rect.top  && e.clientY <= rect.bottom
+
+      if (inside) {
+        setSolutions(prev => prev.map(s =>
+          s.key === drag.key ? { ...s, matrixX: normX, matrixY: normY } : s
+        ))
+      }
     }
     setDrag(null)
   }, [drag])
@@ -127,12 +142,12 @@ export default function ComplexityMatrix({ id, onDone }: Props) {
       const updated: Solution[] = prior.map((sol, i) => {
         const item = items.find(it => it.idx === i)
         return item
-          ? { text: sol.text, matrixX: item.s.matrixX, matrixY: item.s.matrixY }
+          ? { text: sol.text, matrixX: item.s.matrixX, matrixY: item.s.matrixY, applying: item.s.applying }
           : sol
       })
       const extra = items
         .filter(it => it.idx >= prior.length)
-        .map(it => ({ text: it.s.text ?? 'Untitled solution', matrixX: it.s.matrixX, matrixY: it.s.matrixY }))
+        .map(it => ({ text: it.s.text ?? 'Untitled solution', matrixX: it.s.matrixX, matrixY: it.s.matrixY, applying: it.s.applying }))
       causes = updateDeep(causes, causeId, [...updated, ...extra])
     })
     updateProblem(id, { ...problem, causes })
@@ -150,6 +165,10 @@ export default function ComplexityMatrix({ id, onDone }: Props) {
   const draggedSolution = drag ? solutions.find(s => s.key === drag.key) : null
   const dragX = pointerPos.x - (drag?.offsetX ?? 0)
   const dragY = pointerPos.y - (drag?.offsetY ?? 0)
+
+  function toggleApplying(key: string) {
+    setSolutions(prev => prev.map(s => s.key === key ? { ...s, applying: !s.applying } : s))
+  }
 
   return (
     <div
@@ -201,6 +220,7 @@ export default function ComplexityMatrix({ id, onDone }: Props) {
             const left = (s.matrixX ?? 0.5) * 100
             const top = (s.matrixY ?? 0.5) * 100
             const colour = quadrantColor(s.matrixX ?? 0.5, s.matrixY ?? 0.5)
+            const isApplying = !!s.applying
             return (
               <div
                 key={s.key}
@@ -212,7 +232,7 @@ export default function ComplexityMatrix({ id, onDone }: Props) {
                   width: STICKY_W,
                   height: STICKY_H,
                 }}
-                className={`cursor-grab active:cursor-grabbing rounded-lg border-2 shadow-sm flex items-center justify-center p-1.5 text-center text-[10px] font-medium text-gray-700 leading-tight break-words whitespace-normal ${colour}`}
+                className={`cursor-grab active:cursor-grabbing rounded-lg border-2 shadow-sm flex items-center justify-center p-1.5 text-center text-[10px] font-medium text-gray-700 leading-tight break-words whitespace-normal ${colour} ${isApplying ? 'ring-4 ring-indigo-500/30 shadow-lg' : ''}`}
               >
                 {s.text}
               </div>
