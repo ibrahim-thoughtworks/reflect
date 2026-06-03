@@ -1,5 +1,6 @@
 import { getProblems } from '../store/problems'
 import ProblemTree from '../components/ProblemTree'
+import ComplexityMatrixView from '../components/ComplexityMatrixView'
 
 type Props = {
   id: string
@@ -52,7 +53,10 @@ export default function ProblemDetail({ id, onBack, onEdit }: Props) {
             </div>
           </div>
         ) : (
-          <ProblemTree problem={problem} />
+          <>
+            <ProblemTree problem={problem} />
+            <ComplexityMatrixView causes={problem.causes} />
+          </>
         )}
       </main>
     </div>
