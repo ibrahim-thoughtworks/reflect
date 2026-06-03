@@ -26,3 +26,6 @@ creating the narrow border visual.
 1. [ASSUMPTION] inset-4 (16 px) satisfies "little bit small gap in every side".
 2. [ASSUMPTION] Describe phase stays as centered card.
 3. [ASSUMPTION] No changes to CauseTreeEditor or ProblemTree needed.
+
+## Status: Completed
+Implemented in 1 task. All 14 tests passing. Final commit: 81ae655.

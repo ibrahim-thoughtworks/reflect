@@ -19,3 +19,6 @@ checks in toggleRootCause to use this helper instead of checking only the node's
 ## Assumptions
 1. [ASSUMPTION] Fix applies only to CauseTreeEditor — ProblemTree is read-only.
 2. [ASSUMPTION] Descendant check is already correct but gets same helper for symmetry.
+
+## Status: Completed
+Implemented in 1 task. All 14 tests passing. Final commit: 6217714.

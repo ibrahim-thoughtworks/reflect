@@ -72,3 +72,6 @@ Save enabled when allClosed (can be zero nodes if user skipped immediately).
 2. [ASSUMPTION] Problem node is not clickable for root cause — only cause nodes are.
 3. [ASSUMPTION] Editing/deleting causes is out of scope.
 4. [ASSUMPTION] Skipping all causes → empty tree → save still enabled.
+
+## Status: Completed
+Implemented in 3 tasks (delivered as 1 commit). All tests passing. Final commit: c496b7c.

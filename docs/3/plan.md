@@ -74,3 +74,6 @@ Highlight state: useState<string|null> for active groupId; pulse ring on matchin
 3. [ASSUMPTION] Amber (root cause) takes visual priority over group colour.
 4. [ASSUMPTION] Highlight pulse clears automatically after 1.5 s.
 5. [ASSUMPTION] groupId is a short random string.
+
+## Status: Completed
+Implemented in 4 tasks. All 7 tests passing. Final commit: d5dfbc7.

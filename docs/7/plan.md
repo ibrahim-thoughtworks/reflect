@@ -31,3 +31,6 @@ Button is absolute-positioned in a relative wrapper ABOVE the scroll div.
 1. [ASSUMPTION] Y-axis scroll is untouched.
 2. [ASSUMPTION] Re-centre threshold of 20 px prevents flickering.
 3. [ASSUMPTION] No shared hook needed — logic is small enough to duplicate.
+
+## Status: Completed
+Implemented in 1 task. All 20 tests passing. Final commit: 3778717.

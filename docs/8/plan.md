@@ -38,3 +38,6 @@ Clicking source or Esc cancels.
 2. [ASSUMPTION] Clicking source in linking mode cancels.
 3. [ASSUMPTION] Cannot link to a secondary target.
 4. [ASSUMPTION] Promoted children have RC cleared.
+
+## Status: Completed
+Implemented in 2 tasks. All 31 tests passing. Final commit: 11f91f6.

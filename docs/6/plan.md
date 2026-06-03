@@ -31,3 +31,6 @@ Clear isActionableRootCause on unlinked node only. Primary sub-tree unaffected.
 1. [ASSUMPTION] Clicking secondary always shows unlink prompt, not root-cause toggle.
 2. [ASSUMPTION] After unlinking, node becomes open (Add/Skip reappears).
 3. [ASSUMPTION] Primary groupId removed only when last secondary is removed.
+
+## Status: Completed
+Implemented in 1 task. All 20 tests passing. Final commit: ca7e9fa.

@@ -48,3 +48,6 @@ Add 'matrix' view. After SolveProblem save → 'matrix'. After matrix save → '
 2. [ASSUMPTION] Sticky size in matrix: 120x72px; in side panel: full width small card.
 3. [ASSUMPTION] Matrix container takes remaining viewport space (flex-1).
 4. [ASSUMPTION] Cannot remove a placed sticky back to side panel.
+
+## Status: Completed
+Implemented in 2 tasks. All 33 tests passing. Final commit: fee853a.

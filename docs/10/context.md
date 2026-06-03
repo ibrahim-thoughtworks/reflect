@@ -20,3 +20,6 @@ Editor only — detail view unchanged.
 ## Affected files
 - src/components/CauseTreeEditor.tsx
 - src/lib/causeTreeToEditorNodes.ts
+
+## Status: Completed
+All 31 tests passing. Final commit: 5ab284b.

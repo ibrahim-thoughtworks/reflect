@@ -70,3 +70,6 @@ Pass onEdit={goEdit} to ProblemDetail.
    if user goes back to describe manually — AddProblem already handles phase switching).
 2. [ASSUMPTION] createdAt is preserved on update; only description and causes change.
 3. [ASSUMPTION] problemOpen=true on edit load so users can add more root-level causes.
+
+## Status: Completed
+Implemented in 2 tasks. All 31 tests passing. Final commit: a6a6ae6.
