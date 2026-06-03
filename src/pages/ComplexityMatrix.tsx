@@ -64,7 +64,7 @@ export default function ComplexityMatrix({ id, onDone }: Props) {
           key: `${rc.id}:${i}`,
           causeId: rc.id,
           idx: i,
-          text: s.text,
+          text: s.text ?? 'Untitled solution',
           matrixX: s.matrixX,
           matrixY: s.matrixY,
         }))
@@ -130,7 +130,10 @@ export default function ComplexityMatrix({ id, onDone }: Props) {
           ? { text: sol.text, matrixX: item.s.matrixX, matrixY: item.s.matrixY }
           : sol
       })
-      causes = updateDeep(causes, causeId, updated)
+      const extra = items
+        .filter(it => it.idx >= prior.length)
+        .map(it => ({ text: it.s.text ?? 'Untitled solution', matrixX: it.s.matrixX, matrixY: it.s.matrixY }))
+      causes = updateDeep(causes, causeId, [...updated, ...extra])
     })
     updateProblem(id, { ...problem, causes })
     onDone(id)
@@ -208,7 +211,7 @@ export default function ComplexityMatrix({ id, onDone }: Props) {
                   width: STICKY_W,
                   height: STICKY_H,
                 }}
-                className={`cursor-grab active:cursor-grabbing rounded-lg border-2 shadow-sm flex items-center justify-center p-1.5 text-center text-[10px] font-medium text-gray-700 leading-tight ${colour}`}
+                className={`cursor-grab active:cursor-grabbing rounded-lg border-2 shadow-sm flex items-center justify-center p-1.5 text-center text-[10px] font-medium text-gray-700 leading-tight break-words whitespace-normal ${colour}`}
               >
                 {s.text}
               </div>
@@ -226,7 +229,7 @@ export default function ComplexityMatrix({ id, onDone }: Props) {
               key={s.key}
               onPointerDown={e => startDrag(s.key, e, STICKY_W / 2, STICKY_H / 2)}
               style={{ height: STICKY_H }}
-              className="cursor-grab active:cursor-grabbing w-full bg-amber-50 border-2 border-amber-200 rounded-lg shadow-sm flex items-center justify-center p-2 text-[10px] font-medium text-gray-700 leading-tight text-center select-none"
+              className="cursor-grab active:cursor-grabbing w-full bg-amber-50 border-2 border-amber-200 rounded-lg shadow-sm flex items-center justify-center p-2 text-[10px] font-medium text-gray-700 leading-tight break-words whitespace-normal text-center select-none"
             >
               {s.text}
             </div>
@@ -248,7 +251,7 @@ export default function ComplexityMatrix({ id, onDone }: Props) {
           }}
           className="rounded-lg border-2 border-indigo-400 bg-indigo-50 shadow-xl flex items-center justify-center p-1.5 text-center text-[10px] font-medium text-indigo-700 leading-tight opacity-90"
         >
-          {draggedSolution.text}
+          {draggedSolution.text || 'Untitled solution'}
         </div>
       )}
     </div>

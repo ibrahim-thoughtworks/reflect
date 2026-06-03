@@ -39,7 +39,9 @@ function buildCauseTree(nodes: EditorNode[], priorCauses?: CauseNode[]): CauseNo
         children: n.linkedToId ? [] : build(n.id),
         ...(n.groupId ? { groupId: n.groupId } : {}),
         ...(n.linkedToId ? { linkedToId: n.linkedToId } : {}),
-        ...(solutionsById.has(n.id) ? { solutions: solutionsById.get(n.id) } : {}),
+        ...(solutionsById.has(n.id)
+          ? { solutions: solutionsById.get(n.id)?.map(sol => ({ ...sol })) }
+          : {}),
       }))
   }
   return build(null)

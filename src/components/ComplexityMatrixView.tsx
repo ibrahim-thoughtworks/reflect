@@ -33,7 +33,7 @@ export default function ComplexityMatrixView({ causes }: Props) {
         .filter(s => s.matrixX !== undefined && s.matrixY !== undefined)
         .map((s, i) => ({
           key: `${rc.id}:${i}`,
-          text: s.text,
+          text: s.text ?? 'Untitled solution',
           matrixX: s.matrixX!,
           matrixY: s.matrixY!,
         }))
@@ -68,9 +68,9 @@ export default function ComplexityMatrixView({ causes }: Props) {
                 width: STICKY_W,
                 height: STICKY_H,
               }}
-              className={`rounded-lg border-2 shadow-sm flex items-center justify-center p-1.5 text-center text-[10px] font-medium text-gray-700 leading-tight ${colour}`}
+              className={`rounded-lg border-2 shadow-sm flex items-center justify-center p-1.5 text-center text-[10px] font-medium text-gray-700 leading-tight break-words whitespace-normal ${colour}`}
             >
-              {s.text}
+              {s.text || 'Untitled solution'}
             </div>
           )
         })}

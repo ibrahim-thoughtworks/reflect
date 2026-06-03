@@ -84,7 +84,9 @@ export default function SolveProblem({ id, onDone, onNext }: Props) {
       const prior = rootCauses.find(rc => rc.id === causeId)?.solutions ?? []
       const positioned = solutions.map(s => {
         const match = prior.find(p => p.text === s.text)
-        return match ? { ...s, matrixX: match.matrixX, matrixY: match.matrixY } : { text: s.text }
+        return match
+          ? { ...s, text: s.text, matrixX: match.matrixX, matrixY: match.matrixY }
+          : { ...s, text: s.text }
       })
       causes = updateSolutions(causes, causeId, positioned)
     })
