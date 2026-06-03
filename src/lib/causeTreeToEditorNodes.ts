@@ -12,7 +12,8 @@ export function causeTreeToEditorNodes(
       text: cause.text,
       parentId,
       depth,
-      status: 'closed' as const,
+      // Secondary nodes are closed (no Add slot); regular nodes are always open.
+      status: cause.linkedToId ? 'closed' as const : 'open' as const,
       isActionableRootCause: cause.isActionableRootCause,
       ...(cause.groupId ? { groupId: cause.groupId } : {}),
       ...(cause.linkedToId ? { linkedToId: cause.linkedToId } : {}),

@@ -46,17 +46,17 @@ type Props = {
 }
 
 // ─── layout ──────────────────────────────────────────────────────────────────
-// Secondary nodes (linkedToId set) are always closed leaves in the editor —
-// their inherited children are shown only in the detail view.
-function subtreeW(parentId: string | null, nodes: EditorNode[], problemOpen: boolean): number {
+// Skip was removed — every non-secondary node is always open (always has an
+// Add slot). Secondary nodes (linkedToId set) are always closed leaves.
+function subtreeW(parentId: string | null, nodes: EditorNode[]): number {
   const node = parentId ? nodes.find(n => n.id === parentId) : null
   const isSecondary = !!node?.linkedToId
-  const isOpen = parentId === null ? problemOpen : (node?.status === 'open' && !isSecondary)
   const depth = node?.depth ?? 0
-  const hasSlot = isOpen && depth < MAX_DEPTH
+  // Root (parentId=null) and non-secondary nodes are always open.
+  const hasSlot = !isSecondary && depth < MAX_DEPTH
 
   const children = isSecondary ? [] : nodes.filter(n => n.parentId === parentId)
-  const widths = [...children.map(c => subtreeW(c.id, nodes, problemOpen)), ...(hasSlot ? [NODE_W] : [])]
+  const widths = [...children.map(c => subtreeW(c.id, nodes)), ...(hasSlot ? [NODE_W] : [])]
   if (widths.length === 0) return NODE_W
   return widths.reduce((s, w) => s + w, 0) + (widths.length - 1) * H_GAP
 }
@@ -64,25 +64,23 @@ function subtreeW(parentId: string | null, nodes: EditorNode[], problemOpen: boo
 function buildLayout(
   parentId: string | null,
   nodes: EditorNode[],
-  problemOpen: boolean,
   leftX: number,
   topY: number,
 ): LayoutItem {
   const node = parentId ? nodes.find(n => n.id === parentId) : null
   const isSecondary = !!node?.linkedToId
-  const isOpen = parentId === null ? problemOpen : (node?.status === 'open' && !isSecondary)
   const depth = node?.depth ?? 0
-  const hasSlot = isOpen && depth < MAX_DEPTH
+  const hasSlot = !isSecondary && depth < MAX_DEPTH
 
-  const sw = subtreeW(parentId, nodes, problemOpen)
+  const sw = subtreeW(parentId, nodes)
   const centreX = leftX + sw / 2
   const childTopY = topY + NODE_H + V_GAP
 
   const children = isSecondary ? [] : nodes.filter(n => n.parentId === parentId)
   let curLeft = leftX
   const childLayouts = children.map(c => {
-    const cw = subtreeW(c.id, nodes, problemOpen)
-    const cl = buildLayout(c.id, nodes, problemOpen, curLeft, childTopY)
+    const cw = subtreeW(c.id, nodes)
+    const cl = buildLayout(c.id, nodes, curLeft, childTopY)
     curLeft += cw + H_GAP
     return cl
   })
@@ -299,7 +297,6 @@ export function applyRelink(sourceId: string, targetId: string, nodes: EditorNod
 // ─── component ────────────────────────────────────────────────────────────────
 export default function CauseTreeEditor({ description, onSave, initialNodes }: Props) {
   const [nodes, setNodes] = useState<EditorNode[]>(initialNodes ?? [])
-  const [problemOpen, setProblemOpen] = useState(true)
   const [inputtingFor, setInputtingFor] = useState<string | null>(null) // 'root' | nodeId | null
   const [inputValue, setInputValue] = useState('')
   const [linkCandidate, setLinkCandidate] = useState<LinkCandidate | null>(null)
@@ -316,7 +313,7 @@ export default function CauseTreeEditor({ description, onSave, initialNodes }: P
 
   const allGroupIds = collectGroupIds(nodes)
 
-  const rootLayout = buildLayout(null, nodes, problemOpen, PAD, PAD)
+  const rootLayout = buildLayout(null, nodes, PAD, PAD)
   const allItems = flattenLayout(rootLayout)
   const canvasW = Math.max(...allItems.map(i => i.x + i.w / 2)) + PAD
   const canvasH = Math.max(...allItems.map(i => i.y + i.h)) + PAD
@@ -327,14 +324,6 @@ export default function CauseTreeEditor({ description, onSave, initialNodes }: P
     setInputtingFor(parentId === null ? 'root' : parentId)
     setInputValue('')
     setTimeout(() => inputRef.current?.focus(), 30)
-  }
-
-  function skipNode(parentId: string | null) {
-    if (parentId === null) setProblemOpen(false)
-    else setNodes(ns => ns.map(n => n.id === parentId ? { ...n, status: 'closed' } : n))
-    setInputtingFor(null)
-    setInputValue('')
-    setLinkCandidate(null)
   }
 
   function confirmInput(parentId: string | null) {
@@ -543,7 +532,7 @@ export default function CauseTreeEditor({ description, onSave, initialNodes }: P
             const node = nodes.find(n => n.id === item.id)!
             const isRC = node.isActionableRootCause
             const isSecondary = !!node.linkedToId
-            const isLeaf = node.status === 'closed' && !isSecondary && nodes.filter(n => n.parentId === item.id).length === 0
+            const isLeaf = !isSecondary && nodes.filter(n => n.parentId === item.id).length === 0
             const isShaking = shakingId === item.id
             const isHighlighted = !!node.groupId && highlightGroupId === node.groupId
             const isSelected = selectedNodeId === node.id
@@ -731,12 +720,6 @@ export default function CauseTreeEditor({ description, onSave, initialNodes }: P
                     >
                       + Add
                     </button>
-                    <button
-                      onClick={() => skipNode(parentId)}
-                      className="px-3 py-1.5 border border-gray-300 hover:bg-gray-50 text-gray-500 text-xs font-medium rounded-lg transition-colors"
-                    >
-                      Skip
-                    </button>
                   </div>
                 )}
               </div>
@@ -760,7 +743,7 @@ export default function CauseTreeEditor({ description, onSave, initialNodes }: P
       {/* Save */}
       <div className="flex items-center justify-between pt-3 border-t border-gray-100">
         <p className="text-xs text-gray-400">
-          {canSave ? 'All paths filled — ready to save.' : 'Fill or skip every branch to enable Save.'}
+          {canSave ? 'Ready to save.' : 'Add at least one cause to save.'}
         </p>
         <button
           onClick={() => onSave(nodes)}
