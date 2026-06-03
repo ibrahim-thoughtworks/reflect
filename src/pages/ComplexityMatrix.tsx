@@ -153,32 +153,33 @@ export default function ComplexityMatrix({ id, onDone }: Props) {
 
   return (
     <div
-      className="fixed inset-4 bg-gray-50 rounded-2xl shadow-lg border border-gray-200 flex flex-col overflow-hidden z-10"
+      className="fixed inset-4 bg-slate-100 rounded-3xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden z-10"
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
       onPointerCancel={() => setDrag(null)}
     >
       {/* Header */}
-      <div className="shrink-0 flex items-center justify-between px-6 py-3 bg-white border-b border-gray-100">
+      <div className="shrink-0 bg-white/95 backdrop-blur-sm flex flex-col gap-3 px-6 py-5 border-b border-slate-200 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-base font-semibold text-gray-800">Complexity Matrix</h2>
-          <p className="text-xs text-gray-400 truncate">{problem.description}</p>
+          <p className="text-xs uppercase tracking-[0.24em] text-indigo-600 font-semibold">Complexity matrix</p>
+          <h2 className="mt-1 text-xl font-semibold text-slate-900">Place solutions by effort and impact</h2>
+          <p className="mt-1 text-sm text-slate-500 truncate">{problem.description}</p>
         </div>
         <button
           onClick={saveMatrix}
           disabled={!allPlaced}
-          className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed text-white text-sm font-medium rounded-lg transition-colors"
+          className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 disabled:text-slate-500 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-3xl shadow-lg transition-all duration-200"
         >
           {allPlaced ? 'Save →' : `Place all (${unplaced.length} left)`}
         </button>
       </div>
 
       {/* Body */}
-      <div className="flex flex-1 overflow-hidden gap-3 p-4">
+      <div className="flex flex-1 overflow-hidden gap-4 p-4">
         {/* Quadrant matrix */}
         <div
           ref={matrixRef}
-          className="flex-1 relative bg-white rounded-xl border border-gray-200 shadow-sm select-none"
+          className="flex-1 relative bg-slate-50 rounded-[1.75rem] border border-slate-200 shadow-xl select-none overflow-hidden"
         >
           {/* Quadrant labels */}
           <span className="absolute left-3 top-3 text-[10px] font-bold text-yellow-600 uppercase tracking-wide">Quick Win</span>
@@ -187,8 +188,8 @@ export default function ComplexityMatrix({ id, onDone }: Props) {
           <span className="absolute right-3 bottom-3 text-[10px] font-bold text-gray-400 uppercase tracking-wide">Thankless</span>
 
           {/* Axis labels */}
-          <div className="absolute left-1/2 -translate-x-1/2 top-1 text-[9px] text-gray-300 font-medium">Low Effort ←→ High Effort</div>
-          <div className="absolute top-1/2 -translate-y-1/2 -left-7 text-[9px] text-gray-300 font-medium" style={{ writingMode: 'vertical-rl', transform: 'translateY(-50%) rotate(180deg)' }}>High Impact ↑ Low Impact</div>
+          <div className="absolute left-1/2 -translate-x-1/2 top-3 text-[10px] text-slate-400 font-semibold uppercase tracking-[0.2em]">Effort</div>
+          <div className="absolute top-1/2 -translate-y-1/2 -left-8 text-[10px] text-slate-400 font-semibold uppercase tracking-[0.2em]" style={{ writingMode: 'vertical-rl', transform: 'translateY(-50%) rotate(180deg)' }}>Impact</div>
 
           {/* Dividing lines */}
           <div className="absolute left-1/2 top-0 bottom-0 w-px bg-gray-200" />
@@ -220,16 +221,16 @@ export default function ComplexityMatrix({ id, onDone }: Props) {
         </div>
 
         {/* Right side panel — unplaced stickies */}
-        <div className="w-44 shrink-0 flex flex-col gap-2 overflow-y-auto">
-          <p className="text-[10px] uppercase tracking-wide text-gray-400 font-semibold px-1">
+        <div className="w-48 shrink-0 flex flex-col gap-3 overflow-y-auto">
+          <div className="rounded-3xl bg-white border border-slate-200 px-3 py-3 text-[10px] uppercase tracking-[0.2em] text-slate-500 font-semibold">
             {unplaced.length > 0 ? `Drag to place (${unplaced.length})` : '✓ All placed'}
-          </p>
+          </div>
           {unplaced.map(s => (
             <div
               key={s.key}
               onPointerDown={e => startDrag(s.key, e, STICKY_W / 2, STICKY_H / 2)}
               style={{ height: STICKY_H }}
-              className="cursor-grab active:cursor-grabbing w-full bg-amber-50 border-2 border-amber-200 rounded-lg shadow-sm flex items-center justify-center p-2 text-[10px] font-medium text-gray-700 leading-tight break-words whitespace-normal text-center select-none"
+              className="cursor-grab active:cursor-grabbing w-full bg-amber-50 border-2 border-amber-200 rounded-3xl shadow-sm flex items-center justify-center p-3 text-[10px] font-semibold text-slate-800 leading-tight break-words whitespace-normal text-center select-none"
             >
               {s.text}
             </div>

@@ -43,8 +43,8 @@ export default function ComplexityMatrixView({ causes }: Props) {
 
   return (
     <div className="mt-6">
-      <h3 className="text-sm font-semibold text-gray-700 mb-3">Complexity Matrix</h3>
-      <div className="relative bg-white rounded-xl border border-gray-200 shadow-sm" style={{ height: 320 }}>
+      <h3 className="text-sm font-semibold text-slate-900 mb-3">Complexity Matrix</h3>
+      <div className="relative bg-slate-50 rounded-[1.75rem] border border-slate-200 shadow-sm" style={{ height: 320 }}>
         {/* Labels */}
         <span className="absolute left-3 top-3 text-[10px] font-bold text-yellow-600 uppercase tracking-wide">Quick Win</span>
         <span className="absolute right-3 top-3 text-[10px] font-bold text-gray-500 uppercase tracking-wide">Major Project</span>

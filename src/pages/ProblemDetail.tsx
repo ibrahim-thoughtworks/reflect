@@ -25,9 +25,9 @@ export default function ProblemDetail({ id, onBack, onEdit }: Props) {
   }
 
   return (
-    <div className="fixed inset-4 bg-white rounded-2xl shadow-lg border border-gray-200 flex flex-col overflow-hidden z-10">
+    <div className="fixed inset-4 bg-slate-100 rounded-3xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden z-10">
       {/* Header */}
-      <header className="shrink-0 flex items-center gap-4 px-6 py-4 border-b border-gray-100">
+      <header className="shrink-0 bg-white/95 backdrop-blur-sm flex items-center gap-4 px-6 py-5 border-b border-slate-200">
         <button
           onClick={onBack}
           className="shrink-0 text-gray-500 hover:text-gray-700 text-sm font-medium transition-colors"
@@ -48,15 +48,20 @@ export default function ProblemDetail({ id, onBack, onEdit }: Props) {
         {problem.causes.length === 0 ? (
           <div className="flex items-center justify-center h-full">
             <div className="text-center">
-              <p className="text-gray-300 text-4xl mb-4">🌿</p>
-              <p className="text-gray-400 text-sm">No causes were recorded for this problem.</p>
+              <p className="text-slate-300 text-4xl mb-4">🌿</p>
+              <p className="text-slate-500 text-sm">No causes were recorded for this problem.</p>
             </div>
           </div>
         ) : (
-          <>
-            <ProblemTree problem={problem} />
-            <ComplexityMatrixView causes={problem.causes} />
-          </>
+          <div className="space-y-8">
+            <div className="rounded-[2rem] bg-white border border-slate-200 shadow-sm p-6">
+              <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-indigo-600 mb-4">Problem map</h2>
+              <ProblemTree problem={problem} />
+            </div>
+            <div className="rounded-[2rem] bg-white border border-slate-200 shadow-sm p-6">
+              <ComplexityMatrixView causes={problem.causes} />
+            </div>
+          </div>
         )}
       </main>
     </div>
