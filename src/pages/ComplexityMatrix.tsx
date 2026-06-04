@@ -48,6 +48,11 @@ function updateDeep(causes: CauseNode[], causeId: string, newSolutions: Solution
   }))
 }
 
+function canSaveMatrix(solutions: PlacedSolution[]): boolean {
+  const hasApplying = solutions.some(s => s.applying)
+  return hasApplying && solutions.every(s => s.matrixX !== undefined)
+}
+
 const STICKY_W = 120
 const STICKY_H = 68
 
@@ -129,7 +134,7 @@ export default function ComplexityMatrix({ id, onDone }: Props) {
   }, [drag])
 
   function saveMatrix() {
-    if (!problem || !allPlaced) return
+    if (!problem || !canSave) return
     let causes = problem.causes
     // Group solutions back by causeId
     const byId = new Map<string, { idx: number; s: PlacedSolution }[]>()
@@ -179,6 +184,7 @@ export default function ComplexityMatrix({ id, onDone }: Props) {
   const draggedSolution = drag ? solutions.find(s => s.key === drag.key) : null
   const dragX = pointerPos.x - (drag?.offsetX ?? 0)
   const dragY = pointerPos.y - (drag?.offsetY ?? 0)
+  const canSave = canSaveMatrix(solutions)
 
   return (
     <div
@@ -196,10 +202,10 @@ export default function ComplexityMatrix({ id, onDone }: Props) {
         </div>
         <button
           onClick={saveMatrix}
-          disabled={!allPlaced}
+          disabled={!canSave}
           className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 disabled:text-slate-500 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-3xl shadow-lg transition-all duration-200"
         >
-          {allPlaced ? 'Save →' : `Place all (${unplaced.length} left)`}
+          {allPlaced ? (canSave ? 'Save →' : 'Select applying solution') : `Place all (${unplaced.length} left)`}
         </button>
       </div>
 

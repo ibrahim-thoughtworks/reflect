@@ -55,6 +55,7 @@ export default function AddProblem({ onSave, onCancel, existingProblem }: Props)
   const [description, setDescription] = useState(existingProblem?.description ?? '')
 
   function handleSave(nodes: EditorNode[]) {
+    if (!nodes.some(node => node.isActionableRootCause)) return
     const causes = buildCauseTree(nodes, existingProblem?.causes)
     if (isEditing) {
       const updated = { ...existingProblem!, description, causes }

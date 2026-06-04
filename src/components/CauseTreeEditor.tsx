@@ -162,6 +162,10 @@ export function allAncestorIds(targetId: string, nodes: EditorNode[]): Set<strin
   return result
 }
 
+function hasActionableRootCause(nodes: EditorNode[]): boolean {
+  return nodes.some(node => node.isActionableRootCause)
+}
+
 // Returns all descendant node ids across ALL group members' subtrees.
 function allDescendantIds(targetId: string, nodes: EditorNode[]): Set<string> {
   const target = nodes.find(n => n.id === targetId)!
@@ -309,7 +313,8 @@ export default function CauseTreeEditor({ description, onSave, initialNodes }: P
   const scrollRef = useRef<HTMLDivElement>(null)
   const isProgrammaticScroll = useRef(false)
 
-  const canSave = nodes.length > 0 && !inputtingFor && !linkCandidate && !linkingFromId
+  const hasRC = hasActionableRootCause(nodes)
+  const canSave = nodes.length > 0 && hasRC && !inputtingFor && !linkCandidate && !linkingFromId
 
   const allGroupIds = collectGroupIds(nodes)
 
@@ -743,7 +748,11 @@ export default function CauseTreeEditor({ description, onSave, initialNodes }: P
       {/* Save */}
       <div className="flex items-center justify-between pt-3 border-t border-gray-100">
         <p className="text-xs text-gray-400">
-          {canSave ? 'Ready to save.' : 'Add at least one cause to save.'}
+          {canSave
+            ? 'Ready to save.'
+            : nodes.length === 0
+              ? 'Add at least one cause to save.'
+              : 'Mark at least one actionable root cause to save.'}
         </p>
         <button
           onClick={() => onSave(nodes)}

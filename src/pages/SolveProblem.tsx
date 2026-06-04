@@ -20,6 +20,10 @@ function updateSolutions(causes: CauseNode[], nodeId: string, solutions: Solutio
   }))
 }
 
+function canSaveSolutions(rootCauses: CauseNode[], solutionsMap: Map<string, Solution[]>): boolean {
+  return rootCauses.length > 0 && rootCauses.every(rc => (solutionsMap.get(rc.id) ?? []).length > 0)
+}
+
 export default function SolveProblem({ id, onDone, onNext }: Props) {
   const problem = getProblems().find(p => p.id === id) ?? null
 
@@ -76,7 +80,7 @@ export default function SolveProblem({ id, onDone, onNext }: Props) {
   }
 
   function saveSolutions() {
-    if (!problem) return
+    if (!problem || !canSaveSolutions(rootCauses, solutionsMap)) return
     let causes = problem.causes
     // Clear matrixX/Y when text changes (new or removed solutions reset placement)
     solutionsMap.forEach((solutions, causeId) => {
@@ -175,7 +179,13 @@ export default function SolveProblem({ id, onDone, onNext }: Props) {
       {rootCauses.length > 0 && (
         <div className="shrink-0 flex flex-col gap-3 px-6 py-4 border-t border-slate-200 sm:flex-row sm:items-center sm:justify-between">
           <button onClick={onDone} className="text-sm text-slate-500 hover:text-slate-700 transition-colors">Skip for now</button>
-          <button onClick={saveSolutions} className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-3xl transition-all duration-200">Save Solutions →</button>
+          <button
+            onClick={saveSolutions}
+            disabled={!canSaveSolutions(rootCauses, solutionsMap)}
+            className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 disabled:text-slate-500 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-3xl transition-all duration-200"
+          >
+            Save Solutions →
+          </button>
         </div>
       )}
     </div>

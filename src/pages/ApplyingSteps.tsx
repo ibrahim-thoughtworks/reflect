@@ -22,6 +22,13 @@ function flattenCauseTree(nodes: CauseNode[]): CauseNode[] {
   return nodes.flatMap(n => [n, ...flattenCauseTree(n.children)])
 }
 
+function canSaveApplyingSteps(applyingSolutions: ApplyingSolution[], stepsMap: Map<string, string[]>): boolean {
+  return applyingSolutions.length > 0 && applyingSolutions.every(sol => {
+    const steps = stepsMap.get(sol.key) ?? []
+    return steps.filter(step => step.trim() !== '').length > 0
+  })
+}
+
 export default function ApplyingSteps({ id, onDone, onBack }: Props) {
   const problem = getProblems().find(p => p.id === id) ?? null
 
@@ -90,7 +97,7 @@ export default function ApplyingSteps({ id, onDone, onBack }: Props) {
   }
 
   function saveApplyingSteps() {
-    if (!problem) return
+    if (!problem || !canSaveApplyingSteps(applyingSolutions, stepsMap)) return
     const updateNodes = (nodes: CauseNode[]): CauseNode[] => {
       return nodes.map(node => ({
         ...node,
@@ -137,8 +144,8 @@ export default function ApplyingSteps({ id, onDone, onBack }: Props) {
         </div>
         <button
           onClick={saveApplyingSteps}
-          className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-3xl shadow-lg transition-all duration-200"
-          disabled={applyingSolutions.length === 0}
+          disabled={!canSaveApplyingSteps(applyingSolutions, stepsMap)}
+          className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 disabled:text-slate-500 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-3xl shadow-lg transition-all duration-200"
         >
           Save →
         </button>
