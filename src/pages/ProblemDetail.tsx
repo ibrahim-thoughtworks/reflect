@@ -1,11 +1,16 @@
 import { getProblems } from '../store/problems'
 import ProblemTree from '../components/ProblemTree'
 import ComplexityMatrixView from '../components/ComplexityMatrixView'
+import type { CauseNode } from '../types'
 
 type Props = {
   id: string
   onBack: () => void
   onEdit: (id: string) => void
+}
+
+function flattenCauseTree(nodes: CauseNode[]): CauseNode[] {
+  return nodes.flatMap(n => [n, ...flattenCauseTree(n.children)])
 }
 
 export default function ProblemDetail({ id, onBack, onEdit }: Props) {
@@ -61,6 +66,44 @@ export default function ProblemDetail({ id, onBack, onEdit }: Props) {
             <div className="rounded-[2rem] bg-white border border-slate-200 shadow-sm p-6" style={{ minHeight: 840 }}>
               <ComplexityMatrixView causes={problem.causes} />
             </div>
+            {flattenCauseTree(problem.causes)
+              .flatMap(rc => (rc.solutions ?? []).map((sol, idx) => ({
+                key: `${rc.id}:${idx}`,
+                text: sol.text ?? 'Untitled solution',
+                applying: !!sol.applying,
+                applyingSteps: sol.applyingSteps ?? [],
+              })))
+              .filter(sol => sol.applying)
+              .length > 0 && (
+              <div className="rounded-[2rem] bg-white border border-slate-200 shadow-sm p-6">
+                <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-indigo-600 mb-4">Applying solutions</h2>
+                <div className="space-y-6">
+                  {flattenCauseTree(problem.causes)
+                    .flatMap(rc => (rc.solutions ?? []).map((sol, idx) => ({
+                      key: `${rc.id}:${idx}`,
+                      text: sol.text ?? 'Untitled solution',
+                      applying: !!sol.applying,
+                      applyingSteps: sol.applyingSteps ?? [],
+                    })))
+                    .filter(sol => sol.applying)
+                    .map(sol => (
+                      <div key={sol.key} className="rounded-3xl border border-slate-200 bg-slate-50 p-5">
+                        <p className="text-xs uppercase tracking-[0.24em] text-indigo-600 font-semibold mb-2">Applying solution</p>
+                        <p className="text-base font-semibold text-slate-900">{sol.text}</p>
+                        {sol.applyingSteps.length > 0 ? (
+                          <ol className="mt-4 space-y-2 text-sm text-slate-700 list-decimal list-inside">
+                            {sol.applyingSteps.map((step, stepIndex) => (
+                              <li key={stepIndex}>{step}</li>
+                            ))}
+                          </ol>
+                        ) : (
+                          <p className="mt-4 text-sm text-slate-500">No implementation steps defined.</p>
+                        )}
+                      </div>
+                    ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </main>

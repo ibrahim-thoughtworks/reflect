@@ -4,9 +4,10 @@ import AddProblem from './pages/AddProblem'
 import ProblemDetail from './pages/ProblemDetail'
 import SolveProblem from './pages/SolveProblem'
 import ComplexityMatrix from './pages/ComplexityMatrix'
+import ApplyingSteps from './pages/ApplyingSteps'
 import { getProblems } from './store/problems'
 
-type View = 'home' | 'add' | 'detail' | 'edit' | 'solve' | 'matrix'
+type View = 'home' | 'add' | 'detail' | 'edit' | 'solve' | 'matrix' | 'applying'
 
 export default function App() {
   const [view, setView] = useState<View>('home')
@@ -36,6 +37,11 @@ export default function App() {
     setView('matrix')
   }
 
+  const goApplying = (id: string) => {
+    setSelectedId(id)
+    setView('applying')
+  }
+
   if (view === 'add') {
     return <AddProblem onSave={goSolve} onCancel={goHome} />
   }
@@ -58,7 +64,11 @@ export default function App() {
   }
 
   if (view === 'matrix' && selectedId) {
-    return <ComplexityMatrix id={selectedId} onDone={goDetail} />
+    return <ComplexityMatrix id={selectedId} onDone={goApplying} />
+  }
+
+  if (view === 'applying' && selectedId) {
+    return <ApplyingSteps id={selectedId} onDone={goDetail} onBack={goDetail} />
   }
 
   if (view === 'detail' && selectedId) {

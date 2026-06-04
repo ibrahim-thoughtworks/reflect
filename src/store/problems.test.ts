@@ -112,6 +112,21 @@ describe('saveProblem', () => {
     expect(saved.causes[0].solutions?.[1].matrixX).toBeUndefined()
   })
 
+  it('preserves applying steps on root cause solutions round-trip', () => {
+    const rc: CauseNode = {
+      id: 'rc2',
+      text: 'Root cause 2',
+      isActionableRootCause: true,
+      children: [],
+      solutions: [{ text: 'Fix C', applying: true, applyingSteps: ['Plan layout', 'Review deployment'] }],
+    }
+    const p = makeProblem({ causes: [rc] })
+    saveProblem(p)
+    const saved = getProblems()[0]
+    expect(saved.causes[0].solutions?.[0].applying).toBe(true)
+    expect(saved.causes[0].solutions?.[0].applyingSteps).toEqual(['Plan layout', 'Review deployment'])
+  })
+
   it('updateProblem replaces the problem in place', () => {
     const p1 = makeProblem({ id: 'x', description: 'Original' })
     const p2 = makeProblem({ id: 'y', description: 'Other' })

@@ -3,6 +3,8 @@ export type Solution = {
   matrixX?: number   // 0–1 normalised, undefined = unplaced in complexity matrix
   matrixY?: number   // 0–1 normalised, undefined = unplaced in complexity matrix
   applying?: boolean // selected as the solution to apply
+  applyingSteps?: string[]
+  id?: string         // optional stable id for advanced reconciliation
 }
 
 export type CauseNode = {
